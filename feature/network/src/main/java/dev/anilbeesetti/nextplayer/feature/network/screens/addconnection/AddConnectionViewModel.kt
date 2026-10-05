@@ -60,6 +60,7 @@ data class AddConnectionUiState(
     val existingConnection: NetworkConnection? = null,
     val saveState: SaveState = SaveState.Idle,
     val selectedPrivateKey: SelectedPrivateKey? = null,
+    val prefillHost: String? = null,
 )
 
 sealed interface AddConnectionAction {
@@ -82,11 +83,16 @@ class AddConnectionViewModel(
     @Named(DiQualifiers.APPLICATION_SCOPE) private val applicationScope: CoroutineScope,
 ) : MviViewModel<AddConnectionUiState, AddConnectionAction>() {
 
-    data class Input(val connectionId: Long?)
+    data class Input(val connectionId: Long?, val prefillHost: String? = null)
     data class Output(val navigateUp: () -> Unit)
     private val connectionId = input.connectionId
 
-    private val stateInternal = MutableStateFlow(AddConnectionUiState(isEdit = connectionId != null))
+    private val stateInternal = MutableStateFlow(
+        AddConnectionUiState(
+            isEdit = connectionId != null,
+            prefillHost = input.prefillHost?.takeIf { connectionId == null },
+        ),
+    )
     override val state: StateFlow<AddConnectionUiState> = stateInternal.asStateFlow()
 
     private data class SaveOperation(

@@ -1,7 +1,6 @@
 package dev.anilbeesetti.nextplayer.feature.playlist.screens.list
 
 import android.content.Context
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -18,9 +17,6 @@ import dev.anilbeesetti.nextplayer.core.common.extensions.isTelevision
 import dev.anilbeesetti.nextplayer.core.model.PlaylistSummary
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
 import dev.anilbeesetti.nextplayer.core.ui.base.DataState
-import dev.anilbeesetti.nextplayer.core.ui.components.LocalTopLevelFabSetter
-import dev.anilbeesetti.nextplayer.core.ui.components.TopLevelFabKey
-import dev.anilbeesetti.nextplayer.core.ui.components.TopLevelFabState
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -31,28 +27,21 @@ class PlaylistListScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun createFabEmitsShowCreateDialogAction() {
+    fun createActionInTopBarEmitsShowCreateDialogAction() {
         val actions = mutableListOf<PlaylistUiAction>()
-        var fabState: TopLevelFabState? = null
 
         composeRule.setContent {
             NextPlayerTheme {
-                CompositionLocalProvider(
-                    LocalTopLevelFabSetter provides { key, state ->
-                        if (key == TopLevelFabKey.PLAYLISTS) fabState = state
-                    },
-                ) {
-                    PlaylistListScreenContent(
-                        state = PlaylistListUiState(
-                            playlistsDataState = DataState.Success(emptyList()),
-                        ),
-                        onAction = actions::add,
-                    )
-                }
+                PlaylistListScreenContent(
+                    state = PlaylistListUiState(
+                        playlistsDataState = DataState.Success(emptyList()),
+                    ),
+                    onAction = actions::add,
+                )
             }
         }
 
-        composeRule.runOnIdle { checkNotNull(fabState).onClick() }
+        composeRule.onNodeWithContentDescription("Create").performClick()
 
         assertEquals(listOf(PlaylistUiAction.ShowCreationChooser), actions)
     }

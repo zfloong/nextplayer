@@ -3,14 +3,21 @@ package dev.anilbeesetti.nextplayer.feature.playlist
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import dev.anilbeesetti.nextplayer.core.common.service.system.SystemService
+import dev.anilbeesetti.nextplayer.core.data.repository.NetworkConnectionRepository
 import dev.anilbeesetti.nextplayer.core.data.repository.PlaylistRepository
+import dev.anilbeesetti.nextplayer.core.media.network.NetworkClient
 import dev.anilbeesetti.nextplayer.core.model.M3UPlaylist
 import dev.anilbeesetti.nextplayer.core.model.M3UPlaylistItem
+import dev.anilbeesetti.nextplayer.core.model.NetworkConnection
+import dev.anilbeesetti.nextplayer.core.model.NetworkFile
 import dev.anilbeesetti.nextplayer.core.model.PlaylistRecord
+import dev.anilbeesetti.nextplayer.core.model.PlaylistSnapshotDiff
 import dev.anilbeesetti.nextplayer.core.model.PlaylistSummary
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
+import java.io.InputStream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 
 internal data class CreateM3UCall(
     val type: PlaylistType,
@@ -53,6 +60,29 @@ internal class FakePlaylistRepository : PlaylistRepository {
         replaceFailure?.let { throw it }
     }
 
+    val snapshotCreations = mutableListOf<Pair<String, String>>()
+    val snapshotAppends = mutableListOf<Pair<Long, List<String>>>()
+    val snapshotRefreshes = mutableListOf<Pair<Long, List<String>>>()
+    var snapshotDiff = PlaylistSnapshotDiff(added = 0, removed = 0)
+
+    override suspend fun createNetworkSnapshot(name: String, source: String): Long {
+        snapshotCreations += name to source
+        return createdId
+    }
+
+    override suspend fun appendNetworkSnapshotItems(playlistId: Long, videoUris: List<String>): Int {
+        snapshotAppends += playlistId to videoUris
+        return videoUris.size
+    }
+
+    override suspend fun refreshNetworkSnapshot(
+        playlistId: Long,
+        discoveredUris: List<String>,
+    ): PlaylistSnapshotDiff {
+        snapshotRefreshes += playlistId to discoveredUris
+        return snapshotDiff
+    }
+
     override suspend fun rename(playlistId: Long, name: String) = Unit
 
     override suspend fun delete(playlistId: Long) = Unit
@@ -86,4 +116,43 @@ internal class FakeSystemService : SystemService {
     override fun showToast(text: String, duration: Int) {
         toasts += text
     }
+}
+
+internal class FakeNetworkConnectionRepository(
+    private val connections: List<NetworkConnection>,
+) : NetworkConnectionRepository {
+    override fun getConnections(): Flow<List<NetworkConnection>> = flowOf(connections)
+
+    override suspend fun getConnection(id: Long): NetworkConnection? = connections.firstOrNull { it.id == id }
+
+    override suspend fun upsert(connection: NetworkConnection): Long = error("Not used")
+
+    override suspend fun delete(id: Long) = error("Not used")
+}
+
+internal class FakeNetworkClient(
+    private val filesByPath: Map<String, List<NetworkFile>>,
+    private val connectResult: Result<Unit> = Result.success(Unit),
+) : NetworkClient {
+    var disconnects = 0
+        private set
+
+    override val rootPath: String = ""
+
+    override suspend fun connect(): Result<Unit> = connectResult
+
+    override suspend fun disconnect() {
+        disconnects++
+    }
+
+    override fun isConnected(): Boolean = true
+
+    override suspend fun listFiles(path: String): Result<List<NetworkFile>> {
+        val files = filesByPath[path] ?: return Result.failure(IllegalStateException("No such folder $path"))
+        return Result.success(files)
+    }
+
+    override suspend fun fileSize(path: String): Long = error("Not used")
+
+    override suspend fun openStream(path: String, offset: Long): InputStream = error("Not used")
 }

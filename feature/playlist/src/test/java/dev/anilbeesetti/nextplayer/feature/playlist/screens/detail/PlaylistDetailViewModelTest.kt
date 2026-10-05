@@ -5,10 +5,20 @@ import android.net.Uri
 import dev.anilbeesetti.nextplayer.core.data.playlist.M3UParser
 import dev.anilbeesetti.nextplayer.core.data.repository.fake.FakeMediaRepository
 import dev.anilbeesetti.nextplayer.core.domain.ObservePlaylistUseCase
+import dev.anilbeesetti.nextplayer.core.media.network.DefaultNetworkDirectoryScanner
+import dev.anilbeesetti.nextplayer.core.media.network.NetworkClientFactory
+import dev.anilbeesetti.nextplayer.core.media.network.NetworkUri
+import dev.anilbeesetti.nextplayer.core.model.NetworkConnection
+import dev.anilbeesetti.nextplayer.core.model.NetworkFile
+import dev.anilbeesetti.nextplayer.core.model.NetworkProtocol
 import dev.anilbeesetti.nextplayer.core.model.PlaylistItemRecord
 import dev.anilbeesetti.nextplayer.core.model.PlaylistRecord
+import dev.anilbeesetti.nextplayer.core.model.PlaylistSnapshotDiff
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
+import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.base.DataState
+import dev.anilbeesetti.nextplayer.feature.playlist.FakeNetworkClient
+import dev.anilbeesetti.nextplayer.feature.playlist.FakeNetworkConnectionRepository
 import dev.anilbeesetti.nextplayer.feature.playlist.FakePlaylistRepository
 import dev.anilbeesetti.nextplayer.feature.playlist.FakeSystemService
 import kotlinx.coroutines.Dispatchers
@@ -107,16 +117,134 @@ class PlaylistDetailViewModelTest {
         assertTrue(systemService.toasts.isEmpty())
     }
 
-    private fun viewModel() = PlaylistDetailViewModel(
+    @Test
+    fun networkRefreshReScansTheSnapshotFolderAndReportsTheDiff() = runTest(dispatcher) {
+        val connection = snapshotConnection()
+        val source = NetworkUri.snapshotSource(connection, "Media/Series", recursive = false)
+        repository.playlist.value = snapshotRecord(source)
+        repository.snapshotDiff = PlaylistSnapshotDiff(added = 2, removed = 1)
+        val client = FakeNetworkClient(
+            filesByPath = mapOf(
+                "Media/Series" to listOf(
+                    NetworkFile("b.mkv", "Media/Series/b.mkv", isDirectory = false),
+                    NetworkFile("a.mkv", "Media/Series/a.mkv", isDirectory = false),
+                    NetworkFile("Sub", "Media/Series/Sub", isDirectory = true),
+                    NetworkFile("notes.txt", "Media/Series/notes.txt", isDirectory = false),
+                ),
+            ),
+        )
+        val viewModel = viewModel(connection = connection, client = client)
+        runCurrent()
+
+        viewModel.onAction(PlaylistDetailUiAction.Refresh)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                7L to listOf(
+                    NetworkUri.build(connection, "Media/Series/a.mkv").toString(),
+                    NetworkUri.build(connection, "Media/Series/b.mkv").toString(),
+                ),
+            ),
+            repository.snapshotRefreshes,
+        )
+        assertTrue(repository.replacementCalls.isEmpty())
+        assertEquals(1, client.disconnects)
+        assertFalse(viewModel.state.value.isRefreshing)
+        assertEquals(
+            listOf("string-${R.string.snapshot_refresh_result}".format(2, 1)),
+            systemService.toasts,
+        )
+    }
+
+    @Test
+    fun networkRefreshOfAnUnchangedFolderSaysSo() = runTest(dispatcher) {
+        val connection = snapshotConnection()
+        repository.playlist.value = snapshotRecord(NetworkUri.snapshotSource(connection, "Series", recursive = true))
+        val client = FakeNetworkClient(
+            filesByPath = mapOf(
+                "Series" to listOf(
+                    NetworkFile("Episode.mp4", "Series/Episode.mp4", isDirectory = false),
+                    NetworkFile("Season 2", "Series/Season 2", isDirectory = true),
+                ),
+                "Series/Season 2" to listOf(
+                    NetworkFile("Finale.mp4", "Series/Season 2/Finale.mp4", isDirectory = false),
+                ),
+            ),
+        )
+        val viewModel = viewModel(connection = connection, client = client)
+        runCurrent()
+
+        viewModel.onAction(PlaylistDetailUiAction.Refresh)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                NetworkUri.build(connection, "Series/Episode.mp4").toString(),
+                NetworkUri.build(connection, "Series/Season 2/Finale.mp4").toString(),
+            ),
+            repository.snapshotRefreshes.single().second,
+        )
+        assertEquals(
+            listOf("string-${R.string.snapshot_refresh_unchanged}"),
+            systemService.toasts,
+        )
+    }
+
+    @Test
+    fun networkRefreshWithoutItsConnectionSkipsTheScan() = runTest(dispatcher) {
+        repository.playlist.value = snapshotRecord("smb://nas/Media/Series?cid=3&subdirs=false")
+        val client = FakeNetworkClient(emptyMap())
+        val viewModel = viewModel(connection = null, client = client)
+        runCurrent()
+
+        viewModel.onAction(PlaylistDetailUiAction.Refresh)
+        advanceUntilIdle()
+
+        assertTrue(repository.snapshotRefreshes.isEmpty())
+        assertEquals(0, client.disconnects)
+        assertEquals(listOf("Snapshot connection no longer exists"), systemService.toasts)
+    }
+
+    private fun viewModel(
+        connection: NetworkConnection? = snapshotConnection(),
+        client: FakeNetworkClient = FakeNetworkClient(emptyMap()),
+    ) = PlaylistDetailViewModel(
         observePlaylist = ObservePlaylistUseCase(repository, mediaRepository),
         playlistRepository = repository,
         m3uParser = M3UParser(context, Dispatchers.Unconfined),
+        networkConnectionRepository = FakeNetworkConnectionRepository(listOfNotNull(connection)),
+        clientFactory = NetworkClientFactory { client },
+        directoryScanner = DefaultNetworkDirectoryScanner(),
         systemService = systemService,
         input = PlaylistDetailViewModel.Input(7),
         output = PlaylistDetailViewModel.Output(
             navigateUp = {},
             playPlaylist = { _, _ -> },
         ),
+    )
+
+    private fun snapshotConnection() = NetworkConnection(
+        id = 3,
+        name = "NAS",
+        protocol = NetworkProtocol.SMB,
+        host = "nas",
+        path = "Media",
+    )
+
+    private fun snapshotRecord(source: String) = PlaylistRecord(
+        id = 7,
+        name = "Series snapshot",
+        type = PlaylistType.NETWORK,
+        source = source,
+        items = listOf(
+            PlaylistItemRecord(
+                position = 0,
+                uri = "smb://nas/Media/Series/Deleted.mp4?cid=3",
+                title = "Deleted",
+            ),
+        ),
+        lastRefreshedAt = 123,
     )
 
     private fun linkedRecord(source: String?) = PlaylistRecord(

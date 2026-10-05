@@ -2,6 +2,7 @@ package dev.anilbeesetti.nextplayer.feature.network.screens.browse
 
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,12 +10,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -27,17 +31,24 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +58,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.anilbeesetti.nextplayer.core.common.Utils
 import dev.anilbeesetti.nextplayer.core.model.NetworkFile
 import dev.anilbeesetti.nextplayer.core.ui.R
+import dev.anilbeesetti.nextplayer.core.ui.components.NextDialog
+import dev.anilbeesetti.nextplayer.core.ui.components.NextOutlinedTextField
 import dev.anilbeesetti.nextplayer.core.ui.components.NextSegmentedListItem
 import dev.anilbeesetti.nextplayer.core.ui.components.NextTopAppBar
 import dev.anilbeesetti.nextplayer.core.ui.components.tvFocusRing
@@ -86,12 +99,25 @@ internal fun NetworkBrowseScreenContent(
                     }
                 },
                 actions = {
-                    if (!state.isLoading && state.error == null && state.files.any { !it.isDirectory }) {
-                        FilledTonalIconButton(
-                            onClick = { onAction(NetworkBrowseAction.PlayAll) },
-                            modifier = Modifier.tvFocusRing(),
-                        ) {
-                            Icon(NextIcons.Play, contentDescription = stringResource(R.string.play_all))
+                    if (!state.isLoading && state.error == null) {
+                        if (state.files.any { !it.isDirectory }) {
+                            FilledTonalIconButton(
+                                onClick = { onAction(NetworkBrowseAction.PlayAll) },
+                                modifier = Modifier.tvFocusRing(),
+                            ) {
+                                Icon(NextIcons.Play, contentDescription = stringResource(R.string.play_all))
+                            }
+                        }
+                        if (state.files.isNotEmpty()) {
+                            FilledTonalIconButton(
+                                onClick = { onAction(NetworkBrowseAction.ShowSnapshotDialog) },
+                                modifier = Modifier.tvFocusRing(),
+                            ) {
+                                Icon(
+                                    NextIcons.PlaylistAdd,
+                                    contentDescription = stringResource(R.string.create_playlist_from_folder),
+                                )
+                            }
                         }
                     }
                 },
@@ -213,6 +239,176 @@ internal fun NetworkBrowseScreenContent(
             }
         }
     }
+
+    state.snapshot?.let { snapshot ->
+        SnapshotPlaylistDialog(
+            snapshot = snapshot,
+            onAction = onAction,
+        )
+    }
+}
+
+@Composable
+private fun SnapshotPlaylistDialog(
+    snapshot: NetworkSnapshotState,
+    onAction: (NetworkBrowseAction) -> Unit,
+) {
+    val ask = snapshot as? NetworkSnapshotState.Ask
+    val seedName = ask?.suggestedName.orEmpty()
+    var name by rememberSaveable(seedName) { mutableStateOf(seedName) }
+    val isBuilding = snapshot is NetworkSnapshotState.Building
+    val targetId = ask?.targetId
+
+    NextDialog(
+        onDismissRequest = { onAction(NetworkBrowseAction.DismissSnapshotDialog) },
+        title = { Text(stringResource(R.string.create_playlist_from_folder)) },
+        content = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isBuilding) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        LinearProgressIndicator()
+                        Text(
+                            text = stringResource(
+                                R.string.scanning_folder_videos,
+                                (snapshot as NetworkSnapshotState.Building).discovered,
+                            ),
+                        )
+                    }
+                } else {
+                    SnapshotTargetRow(
+                        selected = targetId == null,
+                        title = stringResource(R.string.create_new_playlist),
+                        onClick = { onAction(NetworkBrowseAction.SelectSnapshotTarget(null)) },
+                    )
+                    if (!ask?.targets.isNullOrEmpty()) {
+                        LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
+                            items(ask?.targets.orEmpty(), key = NetworkPlaylistTarget::id) { target ->
+                                SnapshotTargetRow(
+                                    selected = targetId == target.id,
+                                    title = target.name,
+                                    supporting = pluralStringResource(
+                                        R.plurals.playlist_video_count,
+                                        target.itemCount,
+                                        target.itemCount,
+                                    ),
+                                    onClick = { onAction(NetworkBrowseAction.SelectSnapshotTarget(target.id)) },
+                                )
+                            }
+                        }
+                    }
+                    if (targetId == null) {
+                        NextOutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.playlist_name)) },
+                            singleLine = true,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.include_subfolders),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Switch(
+                            checked = ask?.recursive == true,
+                            onCheckedChange = { onAction(NetworkBrowseAction.ToggleSubfolders) },
+                            enabled = ask?.subfoldersRequired != true,
+                        )
+                    }
+                    if (ask?.subfoldersRequired == true) {
+                        Text(
+                            text = stringResource(R.string.subfolders_required_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    if (ask?.failed == true) {
+                        DialogMessage(stringResource(R.string.snapshot_scan_failed))
+                    }
+                    if (ask?.emptyResult == true) {
+                        DialogMessage(stringResource(R.string.snapshot_scan_empty))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (isBuilding) {
+                TextButton(onClick = { onAction(NetworkBrowseAction.DismissSnapshotDialog) }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            } else {
+                TextButton(
+                    onClick = {
+                        onAction(
+                            NetworkBrowseAction.CreateSnapshot(
+                                name = name.trim(),
+                                recursive = ask?.recursive == true,
+                            ),
+                        )
+                    },
+                    enabled = targetId != null || name.isNotBlank(),
+                ) {
+                    Text(stringResource(if (targetId == null) R.string.create else R.string.add))
+                }
+            }
+        },
+        dismissButton = {
+            if (!isBuilding) {
+                TextButton(onClick = { onAction(NetworkBrowseAction.DismissSnapshotDialog) }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun SnapshotTargetRow(
+    selected: Boolean,
+    title: String,
+    onClick: () -> Unit,
+    supporting: String? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            if (supporting != null) {
+                Text(
+                    text = supporting,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogMessage(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error,
+    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

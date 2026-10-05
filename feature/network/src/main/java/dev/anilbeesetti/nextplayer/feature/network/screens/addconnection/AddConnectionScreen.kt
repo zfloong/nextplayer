@@ -105,7 +105,7 @@ internal fun AddConnectionScreenContent(
 
     var protocol by rememberSaveable { mutableStateOf(NetworkProtocol.SMB) }
     var name by rememberSaveable { mutableStateOf("") }
-    var host by rememberSaveable { mutableStateOf("") }
+    var host by rememberSaveable { mutableStateOf(state.prefillHost.orEmpty()) }
     var port by rememberSaveable { mutableStateOf("") }
     var path by rememberSaveable { mutableStateOf(defaultPathFor(NetworkProtocol.SMB)) }
     var username by rememberSaveable { mutableStateOf("") }

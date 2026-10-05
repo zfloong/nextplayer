@@ -132,6 +132,52 @@ interface PlaylistDao {
         updateLastRefreshedAt(playlistId, refreshedAt)
     }
 
+    @Transaction
+    suspend fun createSnapshotPlaylist(name: String, source: String): Long = insertPlaylist(
+        PlaylistEntity(
+            name = name,
+            type = SNAPSHOT_PLAYLIST_TYPE,
+            source = source,
+            lastRefreshedAt = System.currentTimeMillis(),
+        ),
+    )
+
+    /**
+     * Reconciles a snapshot with a freshly scanned folder: vanished files leave, newly appeared
+     * files join at the end, and everything still present keeps its row — and therefore its
+     * playback position.
+     */
+    @Transaction
+    suspend fun applySnapshot(playlistId: Long, discoveredUris: List<String>, refreshedAt: Long): SnapshotDiff {
+        require(getPlaylistEntity(playlistId)?.type == SNAPSHOT_PLAYLIST_TYPE) {
+            "Only network snapshots can be re-scanned"
+        }
+        val currentItems = getItems(playlistId)
+        val discovered = discoveredUris.distinct()
+        val stillThere = discovered.toSet()
+        val gone = currentItems.filter { it.uri !in stillThere }
+        if (gone.isNotEmpty()) {
+            deleteItems(gone)
+            normalizePositions(playlistId)
+        }
+        val keptUris = currentItems.mapTo(mutableSetOf()) { it.uri }
+        val added = addItems(playlistId, discovered.filterNot { it in keptUris })
+        updateLastRefreshedAt(playlistId, refreshedAt)
+        return SnapshotDiff(added = added, removed = gone.size)
+    }
+
+    /** Appends one scanned batch; positions stay contiguous and duplicates are ignored. */
+    @Transaction
+    suspend fun appendSnapshotItems(playlistId: Long, uris: List<String>): Int {
+        require(getPlaylistEntity(playlistId)?.type == SNAPSHOT_PLAYLIST_TYPE) {
+            "Only network snapshots are built by scanning"
+        }
+        return addItems(playlistId, uris)
+    }
+
+    /** Item counts a snapshot refresh applied. */
+    data class SnapshotDiff(val added: Int, val removed: Int)
+
     suspend fun requireLocalPlaylist(playlistId: Long) {
         require(getPlaylistEntity(playlistId)?.type == LOCAL_PLAYLIST_TYPE) {
             "Only local playlists can be edited"
@@ -217,6 +263,7 @@ interface PlaylistDao {
 
     companion object {
         private const val LOCAL_PLAYLIST_TYPE = "LOCAL"
+        private const val SNAPSHOT_PLAYLIST_TYPE = "NETWORK"
         private val LINKED_PLAYLIST_TYPES = setOf("M3U_URL", "M3U_FILE")
     }
 }

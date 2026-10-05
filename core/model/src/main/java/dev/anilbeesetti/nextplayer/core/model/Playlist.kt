@@ -4,6 +4,9 @@ enum class PlaylistType {
     LOCAL,
     M3U_URL,
     M3U_FILE,
+
+    /** Snapshot of a network folder: paths only, refreshed by re-scanning the source. */
+    NETWORK,
 }
 
 data class PlaylistSummary(
@@ -12,6 +15,12 @@ data class PlaylistSummary(
     val type: PlaylistType,
     val itemCount: Int,
     val lastRefreshedAt: Long?,
+)
+
+/** Item counts applied by re-scanning a network snapshot. */
+data class PlaylistSnapshotDiff(
+    val added: Int,
+    val removed: Int,
 )
 
 data class PlaylistRecord(

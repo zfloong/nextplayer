@@ -9,6 +9,7 @@ import dev.anilbeesetti.nextplayer.core.model.M3UPlaylist
 import dev.anilbeesetti.nextplayer.core.model.M3UPlaylistItem
 import dev.anilbeesetti.nextplayer.core.model.PlaylistItemRecord
 import dev.anilbeesetti.nextplayer.core.model.PlaylistRecord
+import dev.anilbeesetti.nextplayer.core.model.PlaylistSnapshotDiff
 import dev.anilbeesetti.nextplayer.core.model.PlaylistSummary
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
 import kotlinx.coroutines.flow.Flow
@@ -64,6 +65,27 @@ class LocalPlaylistRepository(
             items = items.toEntities(playlistId),
             refreshedAt = System.currentTimeMillis(),
         )
+    }
+
+    override suspend fun createNetworkSnapshot(name: String, source: String): Long =
+        playlistDao.createSnapshotPlaylist(
+            name = name.validatedName(),
+            source = source,
+        )
+
+    override suspend fun appendNetworkSnapshotItems(playlistId: Long, videoUris: List<String>): Int =
+        playlistDao.appendSnapshotItems(playlistId, videoUris.distinct())
+
+    override suspend fun refreshNetworkSnapshot(
+        playlistId: Long,
+        discoveredUris: List<String>,
+    ): PlaylistSnapshotDiff {
+        val diff = playlistDao.applySnapshot(
+            playlistId = playlistId,
+            discoveredUris = discoveredUris.distinct(),
+            refreshedAt = System.currentTimeMillis(),
+        )
+        return PlaylistSnapshotDiff(added = diff.added, removed = diff.removed)
     }
 
     override suspend fun rename(playlistId: Long, name: String) {

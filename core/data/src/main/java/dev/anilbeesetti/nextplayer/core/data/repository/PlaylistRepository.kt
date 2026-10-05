@@ -3,6 +3,7 @@ package dev.anilbeesetti.nextplayer.core.data.repository
 import dev.anilbeesetti.nextplayer.core.model.M3UPlaylist
 import dev.anilbeesetti.nextplayer.core.model.M3UPlaylistItem
 import dev.anilbeesetti.nextplayer.core.model.PlaylistRecord
+import dev.anilbeesetti.nextplayer.core.model.PlaylistSnapshotDiff
 import dev.anilbeesetti.nextplayer.core.model.PlaylistSummary
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,13 @@ interface PlaylistRepository {
     ): Long
 
     suspend fun replaceM3UItems(playlistId: Long, items: List<M3UPlaylistItem>)
+
+    /** Creates an empty network snapshot of [source]; items stream in afterwards. */
+    suspend fun createNetworkSnapshot(name: String, source: String): Long
+
+    suspend fun appendNetworkSnapshotItems(playlistId: Long, videoUris: List<String>): Int
+
+    suspend fun refreshNetworkSnapshot(playlistId: Long, discoveredUris: List<String>): PlaylistSnapshotDiff
 
     suspend fun rename(playlistId: Long, name: String)
 

@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.koin.compose.viewmodel)
 
     testImplementation(libs.junit4)
+    testImplementation(libs.androidx.activity.ktx)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     debugImplementation(libs.androidx.compose.ui.tooling)

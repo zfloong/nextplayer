@@ -47,13 +47,11 @@ import dev.anilbeesetti.nextplayer.core.model.PlaylistSummary
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.base.DataState
-import dev.anilbeesetti.nextplayer.core.ui.components.BindTopLevelFab
 import dev.anilbeesetti.nextplayer.core.ui.components.LocalNavigationBottomPadding
 import dev.anilbeesetti.nextplayer.core.ui.components.NextDialog
 import dev.anilbeesetti.nextplayer.core.ui.components.NextOutlinedTextField
 import dev.anilbeesetti.nextplayer.core.ui.components.NextSegmentedListItem
 import dev.anilbeesetti.nextplayer.core.ui.components.NextTopAppBar
-import dev.anilbeesetti.nextplayer.core.ui.components.TopLevelFabKey
 import dev.anilbeesetti.nextplayer.core.ui.components.tvFocusRing
 import dev.anilbeesetti.nextplayer.core.ui.components.tvListFocus
 import dev.anilbeesetti.nextplayer.core.ui.designsystem.NextIcons
@@ -81,11 +79,6 @@ internal fun PlaylistListScreenContent(
     val openM3UFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { onAction(PlaylistUiAction.CreateM3UFile(it)) }
     }
-    BindTopLevelFab(
-        key = TopLevelFabKey.PLAYLISTS,
-        icon = NextIcons.Add,
-        onClick = { onAction(PlaylistUiAction.ShowCreationChooser) },
-    )
 
     val navigationBottomPadding = LocalNavigationBottomPadding.current
 
@@ -95,6 +88,15 @@ internal fun PlaylistListScreenContent(
                 title = stringResource(R.string.playlists),
                 fontWeight = FontWeight.Bold,
                 actions = {
+                    IconButton(
+                        onClick = { onAction(PlaylistUiAction.ShowCreationChooser) },
+                        modifier = Modifier.tvFocusRing(),
+                    ) {
+                        Icon(
+                            imageVector = NextIcons.Add,
+                            contentDescription = stringResource(R.string.create),
+                        )
+                    }
                     IconButton(
                         onClick = { onAction(PlaylistUiAction.OnSettingsClick) },
                         modifier = Modifier.tvFocusRing(),
@@ -136,7 +138,7 @@ internal fun PlaylistListScreenContent(
                                 .fillMaxSize()
                                 .tvListFocus(),
                             contentPadding = PaddingValues(8.dp).copy(
-                                bottom = scaffoldPadding.calculateBottomPadding() + navigationBottomPadding + 96.dp,
+                                bottom = scaffoldPadding.calculateBottomPadding() + navigationBottomPadding,
                             ),
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
@@ -493,6 +495,7 @@ private fun PlaylistType.label(): String = stringResource(
         PlaylistType.LOCAL -> R.string.local_playlist
         PlaylistType.M3U_URL -> R.string.m3u_url_playlist
         PlaylistType.M3U_FILE -> R.string.m3u_file_playlist
+        PlaylistType.NETWORK -> R.string.network_playlist
     },
 )
 

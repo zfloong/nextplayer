@@ -2,16 +2,23 @@ package dev.anilbeesetti.nextplayer.feature.network.screens.list
 
 import android.net.Uri
 import dev.anilbeesetti.nextplayer.core.data.repository.NetworkConnectionRepository
+import dev.anilbeesetti.nextplayer.core.media.network.discovery.DiscoveredSmbHost
+import dev.anilbeesetti.nextplayer.core.media.network.discovery.SmbHostScanner
+import dev.anilbeesetti.nextplayer.core.media.network.discovery.SmbShareEnumerator
+import dev.anilbeesetti.nextplayer.core.media.network.discovery.SmbShareEntry
 import dev.anilbeesetti.nextplayer.core.media.network.keys.SshKeyStore
 import dev.anilbeesetti.nextplayer.core.media.network.keys.StagedSshKey
 import dev.anilbeesetti.nextplayer.core.model.NetworkAuthentication
 import dev.anilbeesetti.nextplayer.core.model.NetworkConnection
 import dev.anilbeesetti.nextplayer.core.model.NetworkProtocol
+import java.io.IOException
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -222,27 +229,31 @@ class NetworkViewModelTest {
             val deleteEvents = mutableListOf<String>()
             val cleanupEvents = mutableListOf<String>()
             NetworkViewModel(
-                output = NetworkViewModel.Output(addConnection = {}, editConnection = {}, openConnection = {}, openSettings = {}, openStream = {}),
+                output = NetworkViewModel.Output({}, {}, {}, {}, {}, {}),
                 repository = FakeNetworkConnectionRepository(
                     connection = null,
                     events = lookupEvents,
                     lookupFailure = IllegalStateException("lookup"),
                 ),
                 sshKeyStore = FakeSshKeyStore(lookupEvents),
+                hostScanner = FakeSmbHostScanner(),
+                shareEnumerator = FakeSmbShareEnumerator(),
             ).onAction(NetworkAction.DeleteConnection(1))
 
             NetworkViewModel(
-                output = NetworkViewModel.Output(addConnection = {}, editConnection = {}, openConnection = {}, openSettings = {}, openStream = {}),
+                output = NetworkViewModel.Output({}, {}, {}, {}, {}, {}),
                 repository = FakeNetworkConnectionRepository(
                     connection = connection(privateKeyFileName = "delete.key"),
                     events = deleteEvents,
                     deleteFailure = IllegalStateException("delete"),
                 ),
                 sshKeyStore = FakeSshKeyStore(deleteEvents),
+                hostScanner = FakeSmbHostScanner(),
+                shareEnumerator = FakeSmbShareEnumerator(),
             ).onAction(NetworkAction.DeleteConnection(2))
 
             NetworkViewModel(
-                output = NetworkViewModel.Output(addConnection = {}, editConnection = {}, openConnection = {}, openSettings = {}, openStream = {}),
+                output = NetworkViewModel.Output({}, {}, {}, {}, {}, {}),
                 repository = FakeNetworkConnectionRepository(
                     connection = connection(privateKeyFileName = "cleanup.key"),
                     events = cleanupEvents,
@@ -251,6 +262,8 @@ class NetworkViewModelTest {
                     cleanupEvents,
                     deleteFailure = IllegalStateException("cleanup"),
                 ),
+                hostScanner = FakeSmbHostScanner(),
+                shareEnumerator = FakeSmbShareEnumerator(),
             ).onAction(NetworkAction.DeleteConnection(3))
 
             advanceUntilIdle()
@@ -259,6 +272,148 @@ class NetworkViewModelTest {
             assertEquals(listOf("repository.get:2", "repository.delete:2"), deleteEvents)
             assertEquals("repository.upsert:7", cleanupEvents.last())
         }
+
+    @Test
+    fun `scan collects discovered hosts then marks finished`() = runTest(mainDispatcherRule.testDispatcher) {
+        val hosts = listOf(
+            DiscoveredSmbHost("192.168.1.10", "NAS"),
+            DiscoveredSmbHost("192.168.1.24"),
+        )
+        val viewModel = viewModelWith(scanner = FakeSmbHostScanner(hosts))
+
+        viewModel.onAction(NetworkAction.StartScan)
+        advanceUntilIdle()
+
+        assertEquals(ScanPhase.Finished, viewModel.state.value.scanPhase)
+        assertEquals(hosts, viewModel.state.value.discoveredHosts)
+    }
+
+    @Test
+    fun `stop scan cancels running scan and clears results`() = runTest(mainDispatcherRule.testDispatcher) {
+        val scanner = FakeSmbHostScanner(
+            hosts = listOf(DiscoveredSmbHost("192.168.1.10")),
+            hangAfterEmit = true,
+        )
+        val viewModel = viewModelWith(scanner = scanner)
+
+        viewModel.onAction(NetworkAction.StartScan)
+        advanceUntilIdle()
+        assertEquals(ScanPhase.Running, viewModel.state.value.scanPhase)
+        assertEquals(1, viewModel.state.value.discoveredHosts.size)
+
+        viewModel.onAction(NetworkAction.StopScan)
+        advanceUntilIdle()
+
+        assertEquals(ScanPhase.Idle, viewModel.state.value.scanPhase)
+        assertEquals(emptyList<DiscoveredSmbHost>(), viewModel.state.value.discoveredHosts)
+        assertTrue(scanner.cancelled)
+    }
+
+    @Test
+    fun `picking discovered host stops scan and asks for credentials`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val viewModel = viewModelWith(scanner = FakeSmbHostScanner(listOf(DiscoveredSmbHost("192.168.1.24"))))
+
+            viewModel.onAction(NetworkAction.StartScan)
+            advanceUntilIdle()
+            viewModel.onAction(NetworkAction.PickDiscoveredHost("192.168.1.24"))
+
+            assertEquals(ScanPhase.Idle, viewModel.state.value.scanPhase)
+            assertEquals(HostConnectFlow.Credentials("192.168.1.24"), viewModel.state.value.connectFlow)
+        }
+
+    @Test
+    fun `submitting credentials adds all discovered shares and closes the dialog`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val repository = FakeNetworkConnectionRepository(connection = null, events = mutableListOf())
+            val viewModel = viewModelWith(
+                enumerator = FakeSmbShareEnumerator(
+                    listOf(SmbShareEntry("Data", 0, "data disk"), SmbShareEntry("SSDData", 0, "")),
+                ),
+                repository = repository,
+            )
+
+            viewModel.onAction(NetworkAction.PickDiscoveredHost("192.168.1.24"))
+            viewModel.onAction(NetworkAction.SubmitCredentials("192.168.1.24", "smbuser", "secret"))
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(
+                    NetworkConnection(
+                        name = "Data",
+                        protocol = NetworkProtocol.SMB,
+                        host = "192.168.1.24",
+                        path = "Data",
+                        username = "smbuser",
+                        password = "secret",
+                    ),
+                    NetworkConnection(
+                        name = "SSDData",
+                        protocol = NetworkProtocol.SMB,
+                        host = "192.168.1.24",
+                        path = "SSDData",
+                        username = "smbuser",
+                        password = "secret",
+                    ),
+                ),
+                repository.upsertedConnections,
+            )
+            assertEquals(HostConnectFlow.None, viewModel.state.value.connectFlow)
+        }
+
+    @Test
+    fun `empty share list reports no shares instead of closing`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val repository = FakeNetworkConnectionRepository(connection = null, events = mutableListOf())
+            val viewModel = viewModelWith(
+                enumerator = FakeSmbShareEnumerator(shares = emptyList()),
+                repository = repository,
+            )
+
+            viewModel.onAction(NetworkAction.PickDiscoveredHost("192.168.1.24"))
+            viewModel.onAction(NetworkAction.SubmitCredentials("192.168.1.24", "smbuser", "secret"))
+            advanceUntilIdle()
+
+            assertEquals(
+                HostConnectFlow.Credentials("192.168.1.24", noShares = true),
+                viewModel.state.value.connectFlow,
+            )
+            assertEquals(emptyList<NetworkConnection>(), repository.upsertedConnections)
+        }
+
+    @Test
+    fun `failed enumeration offers manual entry through the prefilled form`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val connected = mutableListOf<String>()
+            val viewModel = viewModelWith(
+                enumerator = FakeSmbShareEnumerator(failure = IOException("auth rejected")),
+                onConnect = { connected += it },
+            )
+
+            viewModel.onAction(NetworkAction.PickDiscoveredHost("192.168.1.24"))
+            viewModel.onAction(NetworkAction.SubmitCredentials("192.168.1.24", "bad", "creds"))
+            advanceUntilIdle()
+            assertEquals(HostConnectFlow.Credentials("192.168.1.24", failed = true), viewModel.state.value.connectFlow)
+
+            viewModel.onAction(NetworkAction.EnterDetailsManually)
+
+            assertEquals(listOf("192.168.1.24"), connected)
+            assertEquals(HostConnectFlow.None, viewModel.state.value.connectFlow)
+        }
+
+    private fun viewModelWith(
+        scanner: SmbHostScanner = FakeSmbHostScanner(),
+        enumerator: SmbShareEnumerator = FakeSmbShareEnumerator(),
+        repository: FakeNetworkConnectionRepository =
+            FakeNetworkConnectionRepository(connection = null, events = mutableListOf()),
+        onConnect: (String) -> Unit = {},
+    ) = NetworkViewModel(
+        output = NetworkViewModel.Output({}, {}, {}, {}, {}, onConnect),
+        repository = repository,
+        sshKeyStore = FakeSshKeyStore(mutableListOf()),
+        hostScanner = scanner,
+        shareEnumerator = enumerator,
+    )
 
     private fun connection(
         authentication: NetworkAuthentication = NetworkAuthentication.SSH_KEY,
@@ -271,6 +426,38 @@ class NetworkViewModelTest {
         authentication = authentication,
         privateKeyFileName = privateKeyFileName,
     )
+}
+
+private class FakeSmbHostScanner(
+    private val hosts: List<DiscoveredSmbHost> = emptyList(),
+    private val hangAfterEmit: Boolean = false,
+) : SmbHostScanner {
+    var cancelled = false
+        private set
+
+    override fun scan(): Flow<DiscoveredSmbHost> = flow {
+        try {
+            hosts.forEach { emit(it) }
+            if (hangAfterEmit) awaitCancellation()
+        } finally {
+            if (hangAfterEmit) cancelled = true
+        }
+    }
+}
+
+private class FakeSmbShareEnumerator(
+    private val shares: List<SmbShareEntry> = listOf(SmbShareEntry("Data", 0, "data disk")),
+    private val failure: Throwable? = null,
+) : SmbShareEnumerator {
+    override suspend fun enumerate(
+        host: String,
+        port: Int,
+        username: String,
+        password: String,
+    ): List<SmbShareEntry> {
+        failure?.let { throw it }
+        return shares
+    }
 }
 
 private class FakeNetworkConnectionRepository(

@@ -26,13 +26,13 @@ import org.koin.core.parameter.parametersOf
 object NetworkRoute : NavKey
 
 @Serializable
-data class AddConnectionRoute(val connectionId: Long? = null) : NavKey
+data class AddConnectionRoute(val connectionId: Long? = null, val prefillHost: String? = null) : NavKey
 
 @Serializable
 data class NetworkBrowseRoute(val connectionId: Long, val path: String? = null) : NavKey
 
-fun NavBackStack<NavKey>.navigateToAddConnection(connectionId: Long? = null) {
-    add(AddConnectionRoute(connectionId))
+fun NavBackStack<NavKey>.navigateToAddConnection(connectionId: Long? = null, prefillHost: String? = null) {
+    add(AddConnectionRoute(connectionId, prefillHost))
 }
 
 fun NavBackStack<NavKey>.navigateToNetworkBrowse(connectionId: Long, path: String? = null) {
@@ -45,6 +45,7 @@ fun EntryProviderScope<NavKey>.networkEntry(
     onOpenConnection: (connectionId: Long) -> Unit,
     onSettingsClick: () -> Unit,
     onOpenStream: (Uri) -> Unit,
+    onConnectToDiscoveredHost: (host: String) -> Unit,
 ) {
     entry<NetworkRoute> {
         val output = NetworkViewModel.Output(
@@ -53,6 +54,7 @@ fun EntryProviderScope<NavKey>.networkEntry(
             openConnection = onOpenConnection,
             openSettings = onSettingsClick,
             openStream = onOpenStream,
+            connectToDiscoveredHost = onConnectToDiscoveredHost,
         )
         val viewModel = koinViewModel<NetworkViewModel>(
             parameters = { parametersOf(output) },
@@ -84,7 +86,7 @@ fun EntryProviderScope<NavKey>.addConnectionEntry(
         val viewModel = koinViewModel<AddConnectionViewModel>(
             parameters = {
                 parametersOf(
-                    AddConnectionViewModel.Input(connectionId = key.connectionId),
+                    AddConnectionViewModel.Input(connectionId = key.connectionId, prefillHost = key.prefillHost),
                     output,
                 )
             },
