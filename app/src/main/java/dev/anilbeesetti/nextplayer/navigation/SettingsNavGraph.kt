@@ -1,8 +1,16 @@
 package dev.anilbeesetti.nextplayer.navigation
 
+import android.content.Context
+import androidx.core.net.toUri
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import dev.anilbeesetti.nextplayer.feature.more.navigation.historyEntry
+import dev.anilbeesetti.nextplayer.feature.more.navigation.navigateToHistory
+import dev.anilbeesetti.nextplayer.feature.more.navigation.navigateToTrash
+import dev.anilbeesetti.nextplayer.feature.more.navigation.trashEntry
+import dev.anilbeesetti.nextplayer.feature.videopicker.navigation.navigateToVault
+import dev.anilbeesetti.nextplayer.feature.videopicker.navigation.vaultEntry
 import dev.anilbeesetti.nextplayer.settings.Setting
 import dev.anilbeesetti.nextplayer.settings.navigation.aboutPreferencesEntry
 import dev.anilbeesetti.nextplayer.settings.navigation.appearancePreferencesEntry
@@ -28,12 +36,20 @@ import dev.anilbeesetti.nextplayer.settings.navigation.settingsEntry
 import dev.anilbeesetti.nextplayer.settings.navigation.subtitlePreferencesEntry
 import dev.anilbeesetti.nextplayer.settings.navigation.thumbnailPreferencesEntry
 
+/**
+ * [currentStack] is resolved when a callback fires instead of being captured at registration time:
+ * the settings entry can be created before the user ever switches to its tab, and the gear opens
+ * settings on whichever tab stack is currently selected.
+ */
 fun EntryProviderScope<NavKey>.settingsNavGraph(
-    backStack: NavBackStack<NavKey>,
+    context: Context,
+    currentStack: () -> NavBackStack<NavKey>,
 ) {
     settingsEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
+        canNavigateUp = { currentStack().size > 1 },
         onItemClick = { setting ->
+            val backStack = currentStack()
             when (setting) {
                 Setting.APPEARANCE -> backStack.navigateToAppearancePreferences()
                 Setting.MEDIA_LIBRARY -> backStack.navigateToMediaLibraryPreferencesScreen()
@@ -42,44 +58,62 @@ fun EntryProviderScope<NavKey>.settingsNavGraph(
                 Setting.AUDIO -> backStack.navigateToAudioPreferences()
                 Setting.SUBTITLE -> backStack.navigateToSubtitlePreferences()
                 Setting.GENERAL -> backStack.navigateToGeneralPreferences()
+                Setting.VAULT -> backStack.navigateToVault()
+                Setting.TRASH -> backStack.navigateToTrash()
+                Setting.HISTORY -> backStack.navigateToHistory()
                 Setting.ABOUT -> backStack.navigateToAboutPreferences()
             }
         },
     )
     appearancePreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     mediaLibraryPreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
-        onFolderSettingClick = backStack::navigateToFolderPreferencesScreen,
-        onThumbnailSettingClick = backStack::navigateToThumbnailPreferencesScreen,
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
+        onFolderSettingClick = { currentStack().navigateToFolderPreferencesScreen() },
+        onThumbnailSettingClick = { currentStack().navigateToThumbnailPreferencesScreen() },
     )
     thumbnailPreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     folderPreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     playerPreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     gesturePreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     audioPreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     subtitlePreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     generalPreferencesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     aboutPreferencesEntry(
-        onLibrariesClick = backStack::navigateToLibraries,
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onLibrariesClick = { currentStack().navigateToLibraries() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
     )
     librariesEntry(
-        onNavigateUp = { backStack.removeLastIfNotRoot() },
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
+    )
+    historyEntry(
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
+        onPlayVideo = { context.startPlayback(it.toUri()) },
+    )
+    trashEntry(
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
+        onPlayVideo = { context.startPlayback(it.toUri()) },
+    )
+    vaultEntry(
+        onNavigateUp = { currentStack().removeLastIfNotRoot() },
+        // Vault files are served through FileProvider, so read access must be granted at
+        // playback time for both PlayerActivity and the (separate) PlayerService component.
+        onPlayVideo = { uri -> context.startPlayback(uri, grantReadPermission = true) },
+        onPlayVideos = { uris -> context.startPlayback(uris, grantReadPermission = true) },
     )
 }

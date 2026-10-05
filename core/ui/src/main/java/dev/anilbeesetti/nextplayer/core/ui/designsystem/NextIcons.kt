@@ -69,6 +69,7 @@ import androidx.compose.material.icons.rounded.Pinch
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.PriorityHigh
+import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.ResetTv
@@ -144,6 +145,7 @@ object NextIcons {
     val Playlist = Icons.AutoMirrored.Rounded.PlaylistPlay
     val PlaylistAdd = Icons.AutoMirrored.Rounded.PlaylistAdd
     val Priority = Icons.Rounded.PriorityHigh
+    val Radar = Icons.Rounded.Radar
     val Replay = Icons.Rounded.Replay10
     val Resume = Icons.Rounded.ResetTv
     val Rotation = Icons.Rounded.ScreenRotationAlt

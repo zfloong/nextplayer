@@ -1,8 +1,6 @@
 package dev.anilbeesetti.nextplayer.feature.videopicker.screens.mediapicker
 
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInVertically
@@ -40,7 +38,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -99,13 +96,11 @@ import dev.anilbeesetti.nextplayer.core.model.Video
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.base.DataState
 import dev.anilbeesetti.nextplayer.core.ui.components.BindTopLevelBottomBarVisible
-import dev.anilbeesetti.nextplayer.core.ui.components.BindTopLevelFab
 import dev.anilbeesetti.nextplayer.core.ui.components.CancelButton
 import dev.anilbeesetti.nextplayer.core.ui.components.LocalNavigationBottomPadding
 import dev.anilbeesetti.nextplayer.core.ui.components.NextDialog
 import dev.anilbeesetti.nextplayer.core.ui.components.NextOutlinedTextField
 import dev.anilbeesetti.nextplayer.core.ui.components.NextTopAppBar
-import dev.anilbeesetti.nextplayer.core.ui.components.TopLevelFabKey
 import dev.anilbeesetti.nextplayer.core.ui.components.rememberRestorableFocusState
 import dev.anilbeesetti.nextplayer.core.ui.components.thenIf
 import dev.anilbeesetti.nextplayer.core.ui.components.tvFocusRing
@@ -130,8 +125,6 @@ import dev.anilbeesetti.nextplayer.feature.videopicker.composables.vault.VaultPr
 import dev.anilbeesetti.nextplayer.feature.videopicker.screens.vault.VAULT_PIN_LENGTH
 import dev.anilbeesetti.nextplayer.feature.videopicker.state.SelectionItem
 import dev.anilbeesetti.nextplayer.feature.videopicker.state.rememberSelectionManager
-import dev.anilbeesetti.nextplayer.feature.videopicker.state.toSelectedFolder
-import dev.anilbeesetti.nextplayer.feature.videopicker.state.toSelectedVideo
 import kotlin.math.roundToInt
 
 @Composable
@@ -181,37 +174,12 @@ internal fun MediaPickerScreenContent(
         wasPermissionGranted = isPermissionGranted
     }
     val lazyGridState = rememberLazyGridState()
-    val selectVideoFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri -> uri?.let { onAction(MediaPickerAction.OnPlayVideo(it)) } },
-    )
 
     var showQuickSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showRenameActionFor: Video? by rememberSaveable { mutableStateOf(null) }
     var showDeleteVideosConfirmation by rememberSaveable { mutableStateOf(false) }
 
-    val mediaHolder = (state.mediaDataState as? DataState.Success)?.value
-    val onFabClick = {
-        val selectedItem = state.recentlyPlayedVideo?.toSelectedVideo()
-            ?: mediaHolder?.folders?.firstOrNull()?.toSelectedFolder()
-            ?: mediaHolder?.videos?.firstOrNull()?.toSelectedVideo()
-
-        when (selectedItem) {
-            is SelectionItem.Video -> onAction(MediaPickerAction.OnPlayVideo(selectedItem.uriString.toUri()))
-            is SelectionItem.Folder -> onAction(MediaPickerAction.PlaySelectedItems(setOf(selectedItem)))
-            null -> selectVideoFileLauncher.launch("video/*")
-        }
-    }
-
     BindTopLevelBottomBarVisible(state.folderName != null || !selectionManager.isInSelectionMode)
-
-    if (state.folderName == null) {
-        BindTopLevelFab(
-            key = TopLevelFabKey.MEDIA,
-            icon = NextIcons.Play,
-            onClick = onFabClick,
-        )
-    }
 
     val selectedItemsSize = selectionManager.selectionItems.size
     val totalItemsSize = (state.mediaDataState as? DataState.Success)?.value?.run { folders.size + videos.size } ?: 0
@@ -368,19 +336,6 @@ internal fun MediaPickerScreenContent(
                     showDeleteVideosConfirmation = true
                 },
             )
-        },
-        floatingActionButton = {
-            if (state.folderName != null && !selectionManager.isInSelectionMode) {
-                FloatingActionButton(
-                    onClick = onFabClick,
-                    modifier = Modifier
-                        .tvFocusRing(shape = MaterialTheme.shapes.large)
-                        .focusProperties { if (isTv && hasMedia) up = focusState.requester },
-                    shape = MaterialTheme.shapes.large,
-                ) {
-                    Icon(imageVector = NextIcons.Play, contentDescription = stringResource(R.string.play))
-                }
-            }
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) { scaffoldPadding ->

@@ -6,8 +6,6 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import dev.anilbeesetti.nextplayer.feature.more.screens.history.HistoryScreen
 import dev.anilbeesetti.nextplayer.feature.more.screens.history.HistoryViewModel
-import dev.anilbeesetti.nextplayer.feature.more.screens.more.MoreScreen
-import dev.anilbeesetti.nextplayer.feature.more.screens.more.MoreViewModel
 import dev.anilbeesetti.nextplayer.feature.more.screens.trash.TrashScreen
 import dev.anilbeesetti.nextplayer.feature.more.screens.trash.TrashViewModel
 import kotlinx.serialization.Serializable
@@ -15,36 +13,10 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Serializable
-object MoreRoute : NavKey
-
-@Serializable
 object HistoryRoute : NavKey
 
 @Serializable
 object TrashRoute : NavKey
-
-fun EntryProviderScope<NavKey>.moreEntry(
-    onHistoryClick: () -> Unit,
-    onPlayVideo: (String) -> Unit,
-    onSettingsClick: () -> Unit,
-    onTrashClick: () -> Unit,
-    onVaultClick: () -> Unit,
-) {
-    entry<MoreRoute> {
-        val output = MoreViewModel.Output(
-            openHistory = onHistoryClick,
-            playVideo = onPlayVideo,
-            openSettings = onSettingsClick,
-            openTrash = onTrashClick,
-            openVault = onVaultClick,
-        )
-        val viewModel = koinViewModel<MoreViewModel>(
-            parameters = { parametersOf(output) },
-        )
-        SideEffect { viewModel.output = output }
-        MoreScreen(viewModel = viewModel)
-    }
-}
 
 fun EntryProviderScope<NavKey>.historyEntry(
     onNavigateUp: () -> Unit,
@@ -78,10 +50,6 @@ fun EntryProviderScope<NavKey>.trashEntry(
         SideEffect { viewModel.output = output }
         TrashScreen(viewModel = viewModel)
     }
-}
-
-fun NavBackStack<NavKey>.navigateToMore() {
-    add(MoreRoute)
 }
 
 fun NavBackStack<NavKey>.navigateToHistory() {

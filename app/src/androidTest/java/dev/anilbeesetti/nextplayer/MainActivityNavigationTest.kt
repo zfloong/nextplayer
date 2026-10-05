@@ -4,13 +4,15 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import dev.anilbeesetti.nextplayer.core.common.storagePermission
 import dev.anilbeesetti.nextplayer.core.ui.R
+import dev.anilbeesetti.nextplayer.navigation.TopLevelDestination
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,23 +28,22 @@ class MainActivityNavigationTest {
     @Test
     fun settingsOpensAfterActivityRecreation() {
         recreateHome()
-        val settings = composeRule.activity.getString(R.string.settings)
+        val appearance = composeRule.activity.getString(R.string.appearance_name)
 
-        composeRule.onNodeWithContentDescription(settings).performClick()
+        composeRule.onNodeWithTag(settingsTabTag).performClick()
 
-        composeRule.onNodeWithText(settings).assertIsDisplayed()
+        composeRule.onNodeWithText(appearance).assertIsDisplayed()
     }
 
     @Test
     fun vaultOpensAfterActivityRecreation() {
         recreateHome()
-        val more = composeRule.activity.getString(R.string.more)
         val vault = composeRule.activity.getString(R.string.vault)
         val enterPin = composeRule.activity.getString(R.string.enter_vault_pin)
         val setPin = composeRule.activity.getString(R.string.set_vault_pin)
 
-        composeRule.onNodeWithContentDescription(more).performClick()
-        composeRule.onNodeWithText(vault).performClick()
+        composeRule.onNodeWithTag(settingsTabTag).performClick()
+        composeRule.onNodeWithText(vault).performScrollTo().performClick()
 
         composeRule.waitUntil(10_000) {
             composeRule.onAllNodesWithText(enterPin).fetchSemanticsNodes().isNotEmpty() ||
@@ -60,4 +61,7 @@ class MainActivityNavigationTest {
             composeRule.onAllNodesWithContentDescription(settings).fetchSemanticsNodes().isNotEmpty()
         }
     }
+
+    private val settingsTabTag: String
+        get() = "top_level_tab_${TopLevelDestination.SETTINGS.name}"
 }

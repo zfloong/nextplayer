@@ -20,8 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.anilbeesetti.nextplayer.core.media.services.MediaOperationsService
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.components.ClickablePreferenceItem
+import dev.anilbeesetti.nextplayer.core.ui.components.LocalNavigationBottomPadding
 import dev.anilbeesetti.nextplayer.core.ui.components.NextTopAppBar
 import dev.anilbeesetti.nextplayer.core.ui.components.rememberRestorableFocusState
 import dev.anilbeesetti.nextplayer.core.ui.components.restorableFocusGroup
@@ -32,6 +34,7 @@ import dev.anilbeesetti.nextplayer.core.ui.designsystem.NextIcons
 data class SettingsOutput(
     val navigateUp: () -> Unit,
     val openSetting: (Setting) -> Unit,
+    val canNavigateUp: () -> Boolean = { true },
 )
 
 private sealed interface SettingsAction {
@@ -41,7 +44,9 @@ private sealed interface SettingsAction {
 
 @Composable
 fun SettingsScreen(output: SettingsOutput) {
-    SettingsScreenContent { action ->
+    SettingsScreenContent(
+        canNavigateUp = output.canNavigateUp,
+    ) { action ->
         when (action) {
             is SettingsAction.NavigateUp -> output.navigateUp()
             is SettingsAction.OpenSetting -> output.openSetting(action.setting)
@@ -52,24 +57,32 @@ fun SettingsScreen(output: SettingsOutput) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SettingsScreenContent(
+    canNavigateUp: () -> Boolean,
     onAction: (SettingsAction) -> Unit,
 ) {
-    val settingRows = remember { SettingRow.entries }
+    val settingRows = remember {
+        SettingRow.entries.filter { row ->
+            row.setting != Setting.TRASH || MediaOperationsService.supportsTrash()
+        }
+    }
     val focusState = rememberRestorableFocusState()
+    val navigationBottomPadding = LocalNavigationBottomPadding.current
 
     Scaffold(
         topBar = {
             NextTopAppBar(
                 title = stringResource(id = R.string.settings),
                 navigationIcon = {
-                    FilledTonalIconButton(
-                        onClick = { onAction(SettingsAction.NavigateUp) },
-                        modifier = Modifier.tvFocusDown(focusState.requester),
-                    ) {
-                        Icon(
-                            imageVector = NextIcons.ArrowBack,
-                            contentDescription = stringResource(id = R.string.navigate_up),
-                        )
+                    if (canNavigateUp()) {
+                        FilledTonalIconButton(
+                            onClick = { onAction(SettingsAction.NavigateUp) },
+                            modifier = Modifier.tvFocusDown(focusState.requester),
+                        ) {
+                            Icon(
+                                imageVector = NextIcons.ArrowBack,
+                                contentDescription = stringResource(id = R.string.navigate_up),
+                            )
+                        }
                     }
                 },
             )
@@ -79,9 +92,12 @@ private fun SettingsScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // Insets go before verticalScroll so the viewport is clipped above the bottom bar:
+                // while the bar fades out during a push, the row under it must not show through.
+                .padding(innerPadding)
+                .padding(bottom = navigationBottomPadding)
                 .verticalScroll(state = rememberScrollState())
                 .restorableFocusGroup(focusState)
-                .padding(innerPadding)
                 .padding(horizontal = 16.dp)
                 .padding(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
@@ -111,6 +127,9 @@ enum class Setting {
     AUDIO,
     SUBTITLE,
     GENERAL,
+    VAULT,
+    TRASH,
+    HISTORY,
     ABOUT,
 }
 
@@ -161,6 +180,24 @@ private enum class SettingRow(
         descriptionResId = R.string.general_description,
         icon = NextIcons.ExtraSettings,
         setting = Setting.GENERAL,
+    ),
+    VAULT(
+        titleResId = R.string.vault,
+        descriptionResId = R.string.vault_description,
+        icon = NextIcons.Lock,
+        setting = Setting.VAULT,
+    ),
+    TRASH(
+        titleResId = R.string.trash,
+        descriptionResId = R.string.trash_description,
+        icon = NextIcons.Delete,
+        setting = Setting.TRASH,
+    ),
+    HISTORY(
+        titleResId = R.string.history,
+        descriptionResId = R.string.history_description,
+        icon = NextIcons.History,
+        setting = Setting.HISTORY,
     ),
     ABOUT(
         titleResId = R.string.about_name,

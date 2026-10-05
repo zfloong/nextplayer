@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import dev.anilbeesetti.nextplayer.feature.playlist.navigation.PlaylistDetailRoute
+import dev.anilbeesetti.nextplayer.settings.navigation.SettingsRoute
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -16,7 +17,7 @@ class TopLevelNavigationTest {
                 TopLevelDestination.MEDIA,
                 TopLevelDestination.PLAYLISTS,
                 TopLevelDestination.NETWORK,
-                TopLevelDestination.MORE,
+                TopLevelDestination.SETTINGS,
             ),
             TopLevelDestination.entries,
         )
@@ -43,6 +44,36 @@ class TopLevelNavigationTest {
             listOf(TopLevelDestination.PLAYLISTS.route, PlaylistDetailRoute(7)),
             state.currentStack,
         )
+    }
+
+    @Test
+    fun isAtTopLevelTracksSelectedTabRoot() {
+        val stacks = TopLevelDestination.entries.associate { destination ->
+            destination.route to NavBackStack<NavKey>(destination.route)
+        }
+        val state = TopLevelNavState(
+            destinations = TopLevelDestination.entries,
+            backStacks = stacks,
+            selectedIndexState = mutableIntStateOf(0),
+        )
+        val mediaStack = stacks.getValue(TopLevelDestination.MEDIA.route)
+        val playlistStack = stacks.getValue(TopLevelDestination.PLAYLISTS.route)
+
+        assert(state.isAtTopLevel)
+
+        // Gear pressed on home: settings is pushed on the media stack, the bar hides.
+        mediaStack += SettingsRoute
+        assert(!state.isAtTopLevel)
+
+        state.switchTo(TopLevelDestination.SETTINGS.route)
+        assert(state.isAtTopLevel)
+
+        playlistStack += PlaylistDetailRoute(7)
+        state.switchTo(TopLevelDestination.PLAYLISTS.route)
+        assert(!state.isAtTopLevel)
+
+        playlistStack.removeLastOrNull()
+        assert(state.isAtTopLevel)
     }
 
     @Test

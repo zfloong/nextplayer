@@ -16,7 +16,6 @@ import dev.anilbeesetti.nextplayer.core.model.ApplicationPreferences
 import dev.anilbeesetti.nextplayer.core.model.PlayerPreferences
 import dev.anilbeesetti.nextplayer.core.model.SearchHistory
 import dev.anilbeesetti.nextplayer.feature.more.screens.history.HistoryViewModel
-import dev.anilbeesetti.nextplayer.feature.more.screens.more.MoreViewModel
 import dev.anilbeesetti.nextplayer.feature.more.screens.trash.TrashViewModel
 import dev.anilbeesetti.nextplayer.feature.network.screens.addconnection.AddConnectionViewModel
 import dev.anilbeesetti.nextplayer.feature.network.screens.browse.NetworkBrowseViewModel
@@ -82,9 +81,8 @@ class KoinGraphTest {
                 viewModel<MainViewModel>(store)
                 viewModel<PlayerViewModel>(store, PlayerViewModel.Output({}, {}, {}, {}, {}, {}, {}))
                 viewModel<HistoryViewModel>(store, HistoryViewModel.Output({}, {}))
-                viewModel<MoreViewModel>(store, MoreViewModel.Output({}, {}, {}, {}, {}))
                 viewModel<TrashViewModel>(store, TrashViewModel.Output({}, {}))
-                viewModel<NetworkViewModel>(store, NetworkViewModel.Output({}, {}, {}, {}, {}))
+                viewModel<NetworkViewModel>(store, NetworkViewModel.Output({}, {}, {}, {}, {}, {}))
                 viewModel<AddConnectionViewModel>(store, AddConnectionViewModel.Input(null), AddConnectionViewModel.Output({}))
                 viewModel<NetworkBrowseViewModel>(store, NetworkBrowseViewModel.Input(-1, "/"), NetworkBrowseViewModel.Output({}, { _, _ -> }, { _, _ -> }))
                 viewModel<PlaylistListViewModel>(store, PlaylistListViewModel.Output({}, {}))

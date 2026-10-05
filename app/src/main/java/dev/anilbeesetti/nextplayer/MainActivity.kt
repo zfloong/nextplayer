@@ -6,13 +6,14 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,19 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
@@ -58,14 +52,11 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import androidx.window.core.layout.WindowSizeClass
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import dev.anilbeesetti.nextplayer.core.common.extensions.isTelevision
 import dev.anilbeesetti.nextplayer.core.common.service.system.SystemService
 import dev.anilbeesetti.nextplayer.core.media.services.MediaOperationsService
 import dev.anilbeesetti.nextplayer.core.model.ThemeConfig
 import dev.anilbeesetti.nextplayer.core.ui.components.LocalNavigationBottomPadding
 import dev.anilbeesetti.nextplayer.core.ui.components.LocalTopLevelBottomBarVisibleSetter
-import dev.anilbeesetti.nextplayer.core.ui.components.LocalTopLevelFabSetter
-import dev.anilbeesetti.nextplayer.core.ui.components.TopLevelFabState
 import dev.anilbeesetti.nextplayer.core.ui.components.thenIf
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import dev.anilbeesetti.nextplayer.navigation.NextNavigationBar
@@ -73,7 +64,6 @@ import dev.anilbeesetti.nextplayer.navigation.NextNavigationRail
 import dev.anilbeesetti.nextplayer.navigation.TopLevelDestination
 import dev.anilbeesetti.nextplayer.navigation.TopLevelNavState
 import dev.anilbeesetti.nextplayer.navigation.mediaNavGraph
-import dev.anilbeesetti.nextplayer.navigation.moreNavGraph
 import dev.anilbeesetti.nextplayer.navigation.navigationTransition
 import dev.anilbeesetti.nextplayer.navigation.networkNavGraph
 import dev.anilbeesetti.nextplayer.navigation.playlistNavGraph
@@ -133,29 +123,29 @@ class MainActivity : FragmentActivity() {
                     val mediaStack = navState.backStacks.getValue(TopLevelDestination.MEDIA.route)
                     val playlistStack = navState.backStacks.getValue(TopLevelDestination.PLAYLISTS.route)
                     val networkStack = navState.backStacks.getValue(TopLevelDestination.NETWORK.route)
-                    val moreStack = navState.backStacks.getValue(TopLevelDestination.MORE.route)
 
                     val provider = entryProvider {
                         mediaNavGraph(context = this@MainActivity, backStack = mediaStack)
                         playlistNavGraph(context = this@MainActivity, backStack = playlistStack)
                         networkNavGraph(context = this@MainActivity, backStack = networkStack)
-                        moreNavGraph(context = this@MainActivity, backStack = moreStack)
-                        settingsNavGraph(backStack = navState.currentStack)
+                        settingsNavGraph(
+                            context = this@MainActivity,
+                            currentStack = { navState.currentStack },
+                        )
                     }
 
-                    val topLevelFabStates = remember { mutableStateMapOf<String, TopLevelFabState>() }
                     var showTopLevelBottomBar by remember { mutableStateOf(true) }
                     NavigationLayout(
                         state = navState,
-                        fabStates = topLevelFabStates,
                         showBottomBar = showTopLevelBottomBar,
                     ) { layoutPaddingValues ->
                         val railPadding = layoutPaddingValues.calculateStartPadding(LocalLayoutDirection.current)
                         val navigationInsetsDecorator = remember(navState, railPadding) {
                             NavEntryDecorator<NavKey> { entry ->
-                                // Reserve rail space per entry without resizing the animated display.
+                                // Reserve rail space per entry without resizing the animated display;
+                                // only the tab-root pages render next to the rail.
                                 Box(
-                                    Modifier.thenIf(navState.topLevelContentKeys.contains(entry.contentKey)) {
+                                    Modifier.thenIf(navState.isAtTopLevel) {
                                         padding(start = railPadding)
                                             .consumeWindowInsets(WindowInsets.displayCutout.only(WindowInsetsSides.Start))
                                     },
@@ -167,13 +157,6 @@ class MainActivity : FragmentActivity() {
                         CompositionLocalProvider(
                             LocalNavigationBottomPadding provides layoutPaddingValues.calculateBottomPadding(),
                             LocalTopLevelBottomBarVisibleSetter provides { showTopLevelBottomBar = it },
-                            LocalTopLevelFabSetter provides { key, state ->
-                                if (state == null) {
-                                    topLevelFabStates.remove(key)
-                                } else {
-                                    topLevelFabStates[key] = state
-                                }
-                            },
                         ) {
                             NavDisplay(
                                 entries = navState.rememberEntries(provider, navigationInsetsDecorator),
@@ -194,64 +177,33 @@ class MainActivity : FragmentActivity() {
 fun NavigationLayout(
     modifier: Modifier = Modifier,
     state: TopLevelNavState,
-    fabStates: SnapshotStateMap<String, TopLevelFabState>,
     showBottomBar: Boolean,
     windowSizeClass: WindowSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    val isTv = LocalContext.current.isTelevision
     val density = LocalDensity.current
     var railWidth by remember(density) { mutableStateOf(0.dp) }
-    val contentFocusRequester = remember { FocusRequester() }
-    val fabFocusRequester = remember { FocusRequester() }
     val showNavRail = windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
-    val showNavigation = state.currentStack.lastOrNull()?.let { state.topLevelContentKeys.contains(it) } == true
-    val selectedFabState = state.destinations[state.selectedIndex].fabKey?.let(fabStates::get)
-    var displayedFabState by remember { mutableStateOf<TopLevelFabState?>(null) }
-    LaunchedEffect(selectedFabState) {
-        selectedFabState?.let { displayedFabState = it }
-    }
+    val showNavigation = state.isAtTopLevel
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = modifier,
             bottomBar = {
+                // Same duration and easing as the page transition (TopLevelNavState.navigationTransition)
+                // so the bar is fully gone before the incoming page settles over it.
                 AnimatedVisibility(
                     visible = showNavigation && showBottomBar,
-                    enter = fadeIn() + slideInVertically { it },
-                    exit = fadeOut() + slideOutVertically { it },
+                    enter = fadeIn(tween(200, easing = LinearEasing)) + slideInVertically(tween(200, easing = LinearEasing)) { it },
+                    exit = fadeOut(tween(200, easing = LinearEasing)) + slideOutVertically(tween(200, easing = LinearEasing)) { it },
                 ) {
-                    NextNavigationBar(
-                        state = state,
-                        fabState = displayedFabState,
-                        contentFocusRequester = contentFocusRequester,
-                        fabFocusRequester = fabFocusRequester,
-                        showFabOnly = showNavRail,
-                    )
+                    NextNavigationBar(state = state)
                 }
             },
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             contentWindowInsets = WindowInsets(0.dp),
             content = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .thenIf(isTv) {
-                            // The FAB sits outside screen content, whose full-height focus groups
-                            // overlap it. Enter the content explicitly instead of searching the rail.
-                            focusRequester(contentFocusRequester)
-                                .focusProperties {
-                                    onExit = {
-                                        if (requestedFocusDirection == FocusDirection.Down &&
-                                            showNavigation && showBottomBar && displayedFabState != null
-                                        ) {
-                                            fabFocusRequester.requestFocus()
-                                        }
-                                    }
-                                }
-                                .focusGroup()
-                        },
-                ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     content(
                         PaddingValues(
                             start = if (showNavRail) railWidth else 0.dp,
@@ -263,8 +215,8 @@ fun NavigationLayout(
         )
         AnimatedVisibility(
             visible = showNavRail && showNavigation,
-            enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start),
-            exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start),
+            enter = fadeIn(tween(200, easing = LinearEasing)) + expandHorizontally(tween(200, easing = LinearEasing), expandFrom = Alignment.Start),
+            exit = fadeOut(tween(200, easing = LinearEasing)) + shrinkHorizontally(tween(200, easing = LinearEasing), shrinkTowards = Alignment.Start),
         ) {
             NextNavigationRail(
                 state = state,
