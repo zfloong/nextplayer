@@ -28,6 +28,7 @@ object NetworkUri {
 
     private const val CONNECTION_ID_PARAM = "cid"
     private const val HOST_KEY_PARAM = "fp"
+    private const val SUBFOLDERS_PARAM = "subdirs"
 
     private const val SCHEME_SMB = "smb"
     private const val SCHEME_FTP = "ftp"
@@ -63,6 +64,19 @@ object NetworkUri {
 
     fun connectionIdOf(uri: Uri): Long? =
         uri.getQueryParameter(CONNECTION_ID_PARAM)?.toLongOrNull()
+
+    /**
+     * A snapshot playlist's `source`: the folder it was taken from plus whether the scan walked
+     * sub-folders, so a refresh re-scans exactly what the user agreed to.
+     */
+    fun snapshotSource(connection: NetworkConnection, folderPath: String, recursive: Boolean): String =
+        build(connection, folderPath).buildUpon()
+            .appendQueryParameter(SUBFOLDERS_PARAM, recursive.toString())
+            .build()
+            .toString()
+
+    fun isRecursiveSnapshot(uri: Uri): Boolean =
+        uri.getQueryParameter(SUBFOLDERS_PARAM)?.toBoolean() ?: true
 
     /** Restores the path in the form the [NetworkClient] for [protocol] expects. */
     fun filePathOf(uri: Uri, protocol: NetworkProtocol): String {

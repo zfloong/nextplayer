@@ -58,6 +58,25 @@ class NetworkUriTest {
     }
 
     @Test
+    fun `snapshot source remembers its folder and whether subfolders were scanned`() {
+        val connection = connection(NetworkProtocol.SMB)
+        val folder = "Movies/Season 1"
+
+        val recursive = NetworkUri.snapshotSource(connection, folder, recursive = true).toUri()
+        val flat = NetworkUri.snapshotSource(connection, folder, recursive = false).toUri()
+
+        assertTrue(NetworkUri.isRecursiveSnapshot(recursive))
+        assertFalse(NetworkUri.isRecursiveSnapshot(flat))
+        assertEquals(folder, NetworkUri.filePathOf(flat, NetworkProtocol.SMB))
+        assertEquals(connection.id, NetworkUri.connectionIdOf(flat))
+    }
+
+    @Test
+    fun `snapshot source without the subfolders parameter still scans them`() {
+        assertTrue(NetworkUri.isRecursiveSnapshot("smb://host/Movies?cid=1".toUri()))
+    }
+
+    @Test
     fun `connections to the same host stay distinct`() {
         val first = NetworkUri.build(connection(NetworkProtocol.SMB).copy(id = 1), "Movies/ep.mkv")
         val second = NetworkUri.build(connection(NetworkProtocol.SMB).copy(id = 2), "Movies/ep.mkv")
