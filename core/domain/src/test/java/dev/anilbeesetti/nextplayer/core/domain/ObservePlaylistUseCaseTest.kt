@@ -6,6 +6,7 @@ import dev.anilbeesetti.nextplayer.core.model.M3UPlaylist
 import dev.anilbeesetti.nextplayer.core.model.M3UPlaylistItem
 import dev.anilbeesetti.nextplayer.core.model.PlaylistItemRecord
 import dev.anilbeesetti.nextplayer.core.model.PlaylistRecord
+import dev.anilbeesetti.nextplayer.core.model.PlaylistSnapshotDiff
 import dev.anilbeesetti.nextplayer.core.model.PlaylistSummary
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
 import dev.anilbeesetti.nextplayer.core.model.Video
@@ -108,6 +109,15 @@ private class FakePlaylistRepository(
         playlistId: Long,
         items: List<M3UPlaylistItem>,
     ) = error("Not used")
+    override suspend fun createNetworkSnapshot(name: String, source: String): Long = error("Not used")
+    override suspend fun appendNetworkSnapshotItems(
+        playlistId: Long,
+        videoUris: List<String>,
+    ): Int = error("Not used")
+    override suspend fun refreshNetworkSnapshot(
+        playlistId: Long,
+        discoveredUris: List<String>,
+    ): PlaylistSnapshotDiff = error("Not used")
     override suspend fun rename(playlistId: Long, name: String) = error("Not used")
     override suspend fun delete(playlistId: Long) = error("Not used")
     override suspend fun addVideos(playlistId: Long, videoUris: List<String>): Int = error("Not used")
