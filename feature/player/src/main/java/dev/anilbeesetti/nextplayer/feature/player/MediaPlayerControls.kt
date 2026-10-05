@@ -36,7 +36,7 @@ import dev.anilbeesetti.nextplayer.core.ui.components.thenIf
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.SeekGestureState
 import dev.anilbeesetti.nextplayer.feature.player.state.TapGestureState
-import dev.anilbeesetti.nextplayer.feature.player.state.VideoZoomAndContentScaleState
+import dev.anilbeesetti.nextplayer.feature.player.state.VideoTransformState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberMediaPresentationState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberMetadataState
@@ -57,7 +57,7 @@ internal fun MediaPlayerControls(
     controlsVisibilityState: ControlsVisibilityState,
     tapGestureState: TapGestureState,
     seekGestureState: SeekGestureState,
-    videoZoomAndContentScaleState: VideoZoomAndContentScaleState,
+    videoTransformState: VideoTransformState,
     isPipSupported: Boolean,
     onPictureInPictureClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -158,13 +158,12 @@ internal fun MediaPlayerControls(
                     videoDecoderMode = state.decoderServiceState.videoMode,
                     controlsVisibilityState = controlsVisibilityState,
                     seekGestureState = seekGestureState,
-                    videoZoomAndContentScaleState = videoZoomAndContentScaleState,
+                    videoTransformState = videoTransformState,
                     progressState = progressState,
                     chaptersState = chaptersState,
                     isPipSupported = isPipSupported,
                     onShowOverlay = ::showOverlay,
                     onBackClick = { onAction(PlayerAction.NavigateUp) },
-                    onPlayInBackgroundClick = { onAction(PlayerAction.PlayInBackground) },
                     onToggleTimeDisplay = { onAction(PlayerAction.ToggleTimeDisplay) },
                     onPictureInPictureClick = onPictureInPictureClick,
                     middleControlsModifier = Modifier.thenIf(isTv) {
@@ -188,14 +187,12 @@ internal fun MediaPlayerControls(
                 },
                 videoDecoderMode = state.decoderServiceState.videoMode,
                 audioDecoderMode = state.decoderServiceState.audioMode,
-                videoContentScale = videoZoomAndContentScaleState.videoContentScale,
                 onDismiss = { overlayView = null },
                 onVideoDecoderModeSelected = { onAction(PlayerAction.SetVideoDecoderMode(it)) },
                 onAudioDecoderModeSelected = { onAction(PlayerAction.SetAudioDecoderMode(it)) },
                 onSelectSubtitleClick = { onAction(PlayerAction.SelectSubtitle) },
                 onSelectAudioClick = { onAction(PlayerAction.SelectAudio) },
                 onSubtitleOptionEvent = { onAction(PlayerAction.OnSubtitleOptionEvent(it)) },
-                onVideoContentScaleChanged = videoZoomAndContentScaleState::onVideoContentScaleChanged,
             )
         }
     }

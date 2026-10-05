@@ -75,7 +75,6 @@ class PlayerActivity : ComponentActivity() {
     private val onWindowAttributesChangedListener = CopyOnWriteArrayList<Consumer<WindowManager.LayoutParams?>>()
 
     private var isPlaybackFinished = false
-    private var playInBackground: Boolean = false
     private var isIntentNew: Boolean = true
 
     private var mediaController by mutableStateOf<MediaController?>(null)
@@ -151,10 +150,6 @@ class PlayerActivity : ComponentActivity() {
         navigateUp = ::finishAndStopPlayerSession,
         selectSubtitle = ::selectSubtitle,
         selectAudio = ::selectAudio,
-        playInBackground = {
-            playInBackground = true
-            finish()
-        },
         setVideoDecoderMode = { mode ->
             lifecycleScope.launch { mediaController?.setVideoDecoderMode(mode) }
         },
@@ -216,13 +211,13 @@ class PlayerActivity : ComponentActivity() {
         mediaController?.run {
             viewModel.onAction(PlayerAction.UpdatePlayWhenReady(playWhenReady))
             removeListener(playbackStateListener)
-            val shouldPlayInBackground = playInBackground || playerPreferences.autoBackgroundPlay
-            if (subtitleFileSuspendLauncher.isAwaitingResult || audioFileSuspendLauncher.isAwaitingResult || !shouldPlayInBackground) {
+            val autoBackgroundPlay = playerPreferences.autoBackgroundPlay
+            if (subtitleFileSuspendLauncher.isAwaitingResult || audioFileSuspendLauncher.isAwaitingResult || !autoBackgroundPlay) {
                 pause()
             }
             if (isInPictureInPictureMode) {
                 finish()
-                if (!shouldPlayInBackground) stopPlayerSession()
+                if (!autoBackgroundPlay) stopPlayerSession()
             }
         }
         mediaController = null

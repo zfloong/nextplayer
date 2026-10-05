@@ -11,6 +11,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
@@ -30,13 +31,14 @@ import dev.anilbeesetti.nextplayer.feature.player.state.rememberErrorState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberPictureInPictureState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberSeekGestureState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberTapGestureState
-import dev.anilbeesetti.nextplayer.feature.player.state.rememberVideoZoomAndContentScaleState
+import dev.anilbeesetti.nextplayer.feature.player.state.rememberVideoTransformState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberVolumeAndBrightnessGestureState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberVolumeState
 import dev.anilbeesetti.nextplayer.feature.player.ui.PlayerErrorDialogs
 import dev.anilbeesetti.nextplayer.feature.player.ui.PlayerGestures
 import dev.anilbeesetti.nextplayer.feature.player.ui.PlayerVerticalGestureIndicators
 import dev.anilbeesetti.nextplayer.feature.player.ui.SubtitleConfiguration
+import dev.anilbeesetti.nextplayer.feature.player.ui.isPortrait
 import dev.anilbeesetti.nextplayer.feature.player.ui.preview.rememberPreviewPlayer
 import kotlin.time.Duration.Companion.seconds
 
@@ -81,6 +83,7 @@ internal fun MediaPlayerContent(
         return
     }
     val context = LocalContext.current
+    val isPortrait = LocalConfiguration.current.isPortrait
     val controlsVisibilityState = rememberControlsVisibilityState(
         player = player,
         hideAfter = playerPreferences.controllerAutoHideTimeout.seconds,
@@ -105,9 +108,8 @@ internal fun MediaPlayerContent(
     } else {
         null
     }
-    val videoZoomAndContentScaleState = rememberVideoZoomAndContentScaleState(
+    val videoTransformState = rememberVideoTransformState(
         player = player,
-        initialContentScale = playerPreferences.playerVideoZoom,
         enableZoomGesture = playerPreferences.useZoomControls,
         enablePanGesture = playerPreferences.enablePanGesture,
         onEvent = { onAction(PlayerAction.OnVideoZoomEvent(it)) },
@@ -157,7 +159,7 @@ internal fun MediaPlayerContent(
             PlayerContentFrame(
                 player = player,
                 pictureInPictureState = pictureInPictureState,
-                videoZoomAndContentScaleState = videoZoomAndContentScaleState,
+                videoTransformState = videoTransformState,
                 subtitleConfiguration = SubtitleConfiguration(
                     useSystemCaptionStyle = playerPreferences.useSystemCaptionStyle,
                     showBackground = playerPreferences.subtitleBackground,
@@ -173,8 +175,11 @@ internal fun MediaPlayerContent(
                     tapGestureState = tapGestureState,
                     pictureInPictureState = pictureInPictureState,
                     seekGestureState = seekGestureState,
-                    videoZoomAndContentScaleState = videoZoomAndContentScaleState,
+                    videoTransformState = videoTransformState,
                     volumeAndBrightnessGestureState = volumeAndBrightnessGestureState,
+                    isPortrait = isPortrait,
+                    onSwipeToPreviousItem = { player.seekToPreviousMediaItem() },
+                    onSwipeToNextItem = { player.seekToNextMediaItem() },
                 )
             }
         }
@@ -185,7 +190,7 @@ internal fun MediaPlayerContent(
             controlsVisibilityState = controlsVisibilityState,
             tapGestureState = tapGestureState,
             seekGestureState = seekGestureState,
-            videoZoomAndContentScaleState = videoZoomAndContentScaleState,
+            videoTransformState = videoTransformState,
             isPipSupported = pictureInPictureState?.isPipSupported == true,
             onPictureInPictureClick = {
                 pictureInPictureState?.let {

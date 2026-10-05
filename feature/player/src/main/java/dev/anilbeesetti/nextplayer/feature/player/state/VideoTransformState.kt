@@ -5,9 +5,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Constraints
@@ -16,57 +16,42 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.listen
 import androidx.media3.common.util.UnstableApi
-import dev.anilbeesetti.nextplayer.core.model.VideoContentScale
 import dev.anilbeesetti.nextplayer.feature.player.extensions.copy
-import dev.anilbeesetti.nextplayer.feature.player.extensions.next
 import dev.anilbeesetti.nextplayer.feature.player.extensions.videoZoom
 import kotlin.math.abs
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @UnstableApi
 @Composable
-fun rememberVideoZoomAndContentScaleState(
+fun rememberVideoTransformState(
     player: Player,
-    initialContentScale: VideoContentScale,
     enableZoomGesture: Boolean,
     enablePanGesture: Boolean,
     onEvent: (VideoZoomEvent) -> Unit = {},
-): VideoZoomAndContentScaleState {
-    val coroutineScope = rememberCoroutineScope()
-    val videoZoomAndContentScaleState = remember {
-        VideoZoomAndContentScaleState(
+): VideoTransformState {
+    val videoTransformState = remember(player) {
+        VideoTransformState(
             player = player,
-            initialContentScale = initialContentScale,
             enableZoomGesture = enableZoomGesture,
             enablePanGesture = enablePanGesture,
             onEvent = onEvent,
-            coroutineScope = coroutineScope,
         )
     }
-    LaunchedEffect(player) { videoZoomAndContentScaleState.observe() }
-    return videoZoomAndContentScaleState
+    LaunchedEffect(player) { videoTransformState.observe() }
+    return videoTransformState
 }
 
 @Stable
-class VideoZoomAndContentScaleState(
+class VideoTransformState(
     private val player: Player,
-    initialContentScale: VideoContentScale,
     private val enableZoomGesture: Boolean = true,
     private val enablePanGesture: Boolean = true,
     private val onEvent: (VideoZoomEvent) -> Unit,
-    private val coroutineScope: CoroutineScope,
 ) {
-    companion object Companion {
+    companion object {
         private const val MIN_ZOOM = 0.25f
         private const val MAX_ZOOM = 4f
-        private const val CONTENT_SCALE_INDICATOR_DURATION_MS = 1000L
+        private const val HALF_TURN_DEGREES = 180
     }
-
-    var videoContentScale: VideoContentScale by mutableStateOf(initialContentScale)
-        private set
 
     var zoom: Float by mutableFloatStateOf(1f)
         private set
@@ -77,32 +62,12 @@ class VideoZoomAndContentScaleState(
     var isZooming: Boolean by mutableStateOf(false)
         private set
 
-    var showContentScaleIndicator: Boolean by mutableStateOf(false)
+    /** Half-turn only: it flips an upside-down frame without changing its aspect ratio. */
+    var rotationDegrees: Int by mutableIntStateOf(0)
         private set
 
-    private var showContentScaleJob: Job? = null
-
-    fun onVideoContentScaleChanged(newContentScale: VideoContentScale) {
-        videoContentScale = newContentScale
-        zoom = 1f
-        offset = Offset.Zero
-        onEvent(VideoZoomEvent.ContentScaleChanged(videoContentScale))
-        updateVideoScaleMetadataAndSendEvent()
-        showContentScaleIndicator()
-    }
-
-    private fun showContentScaleIndicator() {
-        showContentScaleJob?.cancel()
-        showContentScaleIndicator = true
-        showContentScaleJob = coroutineScope.launch {
-            delay(CONTENT_SCALE_INDICATOR_DURATION_MS)
-            showContentScaleIndicator = false
-            showContentScaleJob = null
-        }
-    }
-
-    fun switchToNextVideoContentScale() {
-        onVideoContentScaleChanged(videoContentScale.next())
+    fun rotateCanvas() {
+        rotationDegrees = if (rotationDegrees == 0) HALF_TURN_DEGREES else 0
     }
 
     fun onZoomPanGesture(constraints: Constraints, panChange: Offset, zoomChange: Float) {
@@ -137,6 +102,9 @@ class VideoZoomAndContentScaleState(
             if (events.contains(Player.EVENT_MEDIA_METADATA_CHANGED)) {
                 zoom = player.currentMediaItem?.mediaMetadata?.videoZoom ?: 1f
             }
+            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                rotationDegrees = 0
+            }
         }
     }
 
@@ -146,11 +114,9 @@ class VideoZoomAndContentScaleState(
             player.currentMediaItemIndex,
             currentMediaItem.copy(videoZoom = zoom),
         )
-        onEvent(VideoZoomEvent.ZoomChanged(currentMediaItem, zoom))
+        onEvent(VideoZoomEvent(currentMediaItem, zoom))
     }
 }
 
-sealed interface VideoZoomEvent {
-    data class ContentScaleChanged(val contentScale: VideoContentScale) : VideoZoomEvent
-    data class ZoomChanged(val mediaItem: MediaItem, val zoom: Float) : VideoZoomEvent
-}
+@Stable
+data class VideoZoomEvent(val mediaItem: MediaItem, val zoom: Float)

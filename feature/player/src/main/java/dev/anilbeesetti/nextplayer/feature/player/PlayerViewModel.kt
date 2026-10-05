@@ -9,7 +9,6 @@ import dev.anilbeesetti.nextplayer.core.domain.GetSortedPlaylistUseCase
 import dev.anilbeesetti.nextplayer.core.model.LoopMode
 import dev.anilbeesetti.nextplayer.core.model.PlayerPreferences
 import dev.anilbeesetti.nextplayer.core.model.Video
-import dev.anilbeesetti.nextplayer.core.model.VideoContentScale
 import dev.anilbeesetti.nextplayer.core.ui.base.MviViewModel
 import dev.anilbeesetti.nextplayer.feature.player.model.DecoderServiceState
 import dev.anilbeesetti.nextplayer.feature.player.state.SubtitleOptionsEvent
@@ -35,7 +34,6 @@ class PlayerViewModel(
         val navigateUp: () -> Unit,
         val selectSubtitle: () -> Unit,
         val selectAudio: () -> Unit,
-        val playInBackground: () -> Unit,
         val setVideoDecoderMode: (DecoderMode) -> Unit,
         val setAudioDecoderMode: (DecoderMode) -> Unit,
         val tryDecoderFallback: () -> Unit,
@@ -61,7 +59,6 @@ class PlayerViewModel(
             is PlayerAction.NavigateUp -> output.navigateUp()
             is PlayerAction.SelectSubtitle -> output.selectSubtitle()
             is PlayerAction.SelectAudio -> output.selectAudio()
-            is PlayerAction.PlayInBackground -> output.playInBackground()
             is PlayerAction.SetVideoDecoderMode -> output.setVideoDecoderMode(action.mode)
             is PlayerAction.SetAudioDecoderMode -> output.setAudioDecoderMode(action.mode)
             is PlayerAction.TryDecoderFallback -> output.tryDecoderFallback()
@@ -91,12 +88,6 @@ class PlayerViewModel(
         }
     }
 
-    private fun updateVideoContentScale(contentScale: VideoContentScale) {
-        viewModelScope.launch {
-            preferencesRepository.updatePlayerPreferences { it.copy(playerVideoZoom = contentScale) }
-        }
-    }
-
     private fun setLoopMode(loopMode: LoopMode) {
         viewModelScope.launch {
             preferencesRepository.updatePlayerPreferences { it.copy(loopMode = loopMode) }
@@ -110,14 +101,7 @@ class PlayerViewModel(
     }
 
     private fun onVideoZoomEvent(event: VideoZoomEvent) {
-        when (event) {
-            is VideoZoomEvent.ContentScaleChanged -> {
-                updateVideoContentScale(event.contentScale)
-            }
-            is VideoZoomEvent.ZoomChanged -> {
-                updateVideoZoom(event.mediaItem.mediaId, event.zoom)
-            }
-        }
+        updateVideoZoom(event.mediaItem.mediaId, event.zoom)
     }
 
     private fun onSubtitleOptionEvent(event: SubtitleOptionsEvent) {
@@ -155,7 +139,6 @@ sealed interface PlayerAction {
     data object NavigateUp : PlayerAction
     data object SelectSubtitle : PlayerAction
     data object SelectAudio : PlayerAction
-    data object PlayInBackground : PlayerAction
     data class SetVideoDecoderMode(val mode: DecoderMode) : PlayerAction
     data class SetAudioDecoderMode(val mode: DecoderMode) : PlayerAction
     data object TryDecoderFallback : PlayerAction

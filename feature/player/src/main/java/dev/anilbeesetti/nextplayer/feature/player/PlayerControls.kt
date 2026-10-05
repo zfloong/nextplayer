@@ -11,17 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.state.ProgressStateWithTickInterval
 import dev.anilbeesetti.nextplayer.core.model.ControlButtonsPosition
 import dev.anilbeesetti.nextplayer.core.model.PlayerPreferences
-import dev.anilbeesetti.nextplayer.feature.player.extensions.nameRes
 import dev.anilbeesetti.nextplayer.feature.player.state.ChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.SeekGestureState
-import dev.anilbeesetti.nextplayer.feature.player.state.VideoZoomAndContentScaleState
+import dev.anilbeesetti.nextplayer.feature.player.state.VideoTransformState
 import dev.anilbeesetti.nextplayer.feature.player.state.seekAmountFormatted
 import dev.anilbeesetti.nextplayer.feature.player.state.seekToPositionFormated
 import dev.anilbeesetti.nextplayer.feature.player.ui.InfoView
@@ -29,6 +28,7 @@ import dev.anilbeesetti.nextplayer.feature.player.ui.OverlayView
 import dev.anilbeesetti.nextplayer.feature.player.ui.controls.ControlsBottomView
 import dev.anilbeesetti.nextplayer.feature.player.ui.controls.ControlsMiddleView
 import dev.anilbeesetti.nextplayer.feature.player.ui.controls.ControlsTopView
+import dev.anilbeesetti.nextplayer.feature.player.ui.isPortrait
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.DecoderMode
 
 @OptIn(UnstableApi::class)
@@ -40,18 +40,18 @@ fun PlayerControls(
     videoDecoderMode: DecoderMode?,
     controlsVisibilityState: ControlsVisibilityState,
     seekGestureState: SeekGestureState,
-    videoZoomAndContentScaleState: VideoZoomAndContentScaleState,
+    videoTransformState: VideoTransformState,
     progressState: ProgressStateWithTickInterval,
     chaptersState: ChaptersState,
     isPipSupported: Boolean,
     onShowOverlay: (OverlayView) -> Unit,
     onBackClick: () -> Unit,
-    onPlayInBackgroundClick: () -> Unit,
     onToggleTimeDisplay: () -> Unit,
     onPictureInPictureClick: () -> Unit,
     modifier: Modifier = Modifier,
     middleControlsModifier: Modifier = Modifier,
 ) {
+    val isPortrait = LocalConfiguration.current.isPortrait
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -87,33 +87,32 @@ fun PlayerControls(
                         ControlButtonsPosition.LEFT -> Alignment.Start
                         ControlButtonsPosition.RIGHT -> Alignment.End
                     },
-                    videoContentScale = videoZoomAndContentScaleState.videoContentScale,
                     isPipSupported = isPipSupported,
+                    isPortrait = isPortrait,
                     showRemainingTime = playerPreferences.showRemainingTime,
                     onToggleTimeDisplay = onToggleTimeDisplay,
                     onSeek = seekGestureState::onSeek,
                     onSeekEnd = seekGestureState::onSeekEnd,
                     onPlaybackSpeedClick = { onShowOverlay(OverlayView.PLAYBACK_SPEED) },
-                    onPlayInBackgroundClick = onPlayInBackgroundClick,
                     onLockControlsClick = {
                         controlsVisibilityState.showControls()
                         controlsVisibilityState.lockControls()
                     },
-                    onVideoContentScaleClick = {
+                    onContentRotateClick = {
                         controlsVisibilityState.showControls()
-                        videoZoomAndContentScaleState.switchToNextVideoContentScale()
+                        videoTransformState.rotateCanvas()
                     },
-                    onVideoContentScaleLongClick = { onShowOverlay(OverlayView.VIDEO_CONTENT_SCALE) },
+                    contentRotated = videoTransformState.rotationDegrees != 0,
                     onPictureInPictureClick = onPictureInPictureClick,
                 )
             }
         }
         when {
             seekGestureState.seekAmount != null -> InfoView(info = "${seekGestureState.seekAmountFormatted}\n[${seekGestureState.seekToPositionFormated}]")
-            videoZoomAndContentScaleState.isZooming -> InfoView(info = "${(videoZoomAndContentScaleState.zoom * 100).toInt()}%")
-            videoZoomAndContentScaleState.showContentScaleIndicator -> InfoView(info = stringResource(videoZoomAndContentScaleState.videoContentScale.nameRes()))
+            videoTransformState.isZooming -> InfoView(info = "${(videoTransformState.zoom * 100).toInt()}%")
             controlsVisibilityState.controlsVisible -> ControlsMiddleView(
                 player = player,
+                isPortrait = isPortrait,
                 modifier = middleControlsModifier,
             )
         }

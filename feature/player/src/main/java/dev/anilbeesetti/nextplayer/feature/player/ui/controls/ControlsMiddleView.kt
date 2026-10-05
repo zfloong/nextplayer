@@ -28,6 +28,7 @@ import dev.anilbeesetti.nextplayer.feature.player.ui.preview.rememberPreviewPlay
 fun ControlsMiddleView(
     modifier: Modifier = Modifier,
     player: Player?,
+    isPortrait: Boolean,
 ) {
     val playPauseFocusRequester = remember { FocusRequester() }
     Row(
@@ -40,12 +41,12 @@ fun ControlsMiddleView(
         horizontalArrangement = Arrangement.spacedBy(40.dp, alignment = Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PreviousButton(player = player)
+        PreviousButton(player = player, large = !isPortrait)
         PlayPauseButton(
             player = player,
             modifier = Modifier.focusRequester(playPauseFocusRequester),
         )
-        NextButton(player = player)
+        NextButton(player = player, large = !isPortrait)
     }
 }
 
@@ -57,6 +58,7 @@ private fun ControlsMiddleViewPreview() {
         Surface {
             ControlsMiddleView(
                 player = rememberPreviewPlayer(),
+                isPortrait = false,
             )
         }
     }

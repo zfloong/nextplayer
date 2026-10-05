@@ -19,12 +19,13 @@ import dev.anilbeesetti.nextplayer.feature.player.LocalControlsVisibilityState
 internal fun NextButton(
     modifier: Modifier = Modifier,
     player: Player?,
+    large: Boolean = false,
 ) {
     val state = rememberNextButtonState(player)
     val controlsVisibilityState = LocalControlsVisibilityState.current
 
     PlayerButton(
-        modifier = modifier.size(48.dp),
+        modifier = modifier.size(if (large) 64.dp else 48.dp),
         enabled = state.isEnabled,
         onClick = {
             state.onClick()
@@ -34,7 +35,7 @@ internal fun NextButton(
         Icon(
             painter = painterResource(coreUiR.drawable.ic_skip_next),
             contentDescription = stringResource(coreUiR.string.player_controls_next),
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(if (large) 48.dp else 28.dp),
         )
     }
 }

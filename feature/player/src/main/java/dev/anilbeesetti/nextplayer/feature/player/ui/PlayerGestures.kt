@@ -14,8 +14,28 @@ import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.PictureInPictureState
 import dev.anilbeesetti.nextplayer.feature.player.state.SeekGestureState
 import dev.anilbeesetti.nextplayer.feature.player.state.TapGestureState
-import dev.anilbeesetti.nextplayer.feature.player.state.VideoZoomAndContentScaleState
+import dev.anilbeesetti.nextplayer.feature.player.state.VideoTransformState
 import dev.anilbeesetti.nextplayer.feature.player.state.VolumeAndBrightnessGestureState
+
+private const val SWIPE_TO_CHANGE_ITEM_THRESHOLD = 0.15f
+
+internal enum class ItemSwipeDirection {
+    NEXT,
+    PREVIOUS,
+}
+
+/** A portrait swipe past the threshold changes the video, like the short video feeds do. */
+internal fun swipeToChangeItemDirection(
+    verticalDragDistance: Float,
+    screenHeight: Float,
+): ItemSwipeDirection? {
+    val threshold = screenHeight * SWIPE_TO_CHANGE_ITEM_THRESHOLD
+    return when {
+        verticalDragDistance <= -threshold -> ItemSwipeDirection.NEXT
+        verticalDragDistance >= threshold -> ItemSwipeDirection.PREVIOUS
+        else -> null
+    }
+}
 
 @Composable
 fun PlayerGestures(
@@ -24,8 +44,11 @@ fun PlayerGestures(
     tapGestureState: TapGestureState,
     pictureInPictureState: PictureInPictureState,
     seekGestureState: SeekGestureState,
-    videoZoomAndContentScaleState: VideoZoomAndContentScaleState,
+    videoTransformState: VideoTransformState,
     volumeAndBrightnessGestureState: VolumeAndBrightnessGestureState,
+    isPortrait: Boolean,
+    onSwipeToPreviousItem: () -> Unit,
+    onSwipeToNextItem: () -> Unit,
 ) {
     BoxWithConstraints {
         Box(
@@ -68,18 +91,36 @@ fun PlayerGestures(
                     )
                 }
                 .pointerInput(
+                    isPortrait,
                     controlsVisibilityState.controlsLocked,
                     pictureInPictureState.isInPictureInPictureMode,
                 ) {
                     if (controlsVisibilityState.controlsLocked) return@pointerInput
                     if (pictureInPictureState.isInPictureInPictureMode) return@pointerInput
 
-                    detectCustomVerticalDragGestures(
-                        onDragStart = { volumeAndBrightnessGestureState.onDragStart(it, size) },
-                        onVerticalDrag = volumeAndBrightnessGestureState::onDrag,
-                        onDragCancel = volumeAndBrightnessGestureState::onDragEnd,
-                        onDragEnd = volumeAndBrightnessGestureState::onDragEnd,
-                    )
+                    if (isPortrait) {
+                        var verticalDragDistance = 0f
+                        detectCustomVerticalDragGestures(
+                            onDragStart = { verticalDragDistance = 0f },
+                            onVerticalDrag = { _, dragAmount -> verticalDragDistance += dragAmount },
+                            onDragCancel = { verticalDragDistance = 0f },
+                            onDragEnd = {
+                                when (swipeToChangeItemDirection(verticalDragDistance, size.height.toFloat())) {
+                                    ItemSwipeDirection.NEXT -> onSwipeToNextItem()
+                                    ItemSwipeDirection.PREVIOUS -> onSwipeToPreviousItem()
+                                    null -> Unit
+                                }
+                                verticalDragDistance = 0f
+                            },
+                        )
+                    } else {
+                        detectCustomVerticalDragGestures(
+                            onDragStart = { volumeAndBrightnessGestureState.onDragStart(it, size) },
+                            onVerticalDrag = volumeAndBrightnessGestureState::onDrag,
+                            onDragCancel = volumeAndBrightnessGestureState::onDragEnd,
+                            onDragEnd = volumeAndBrightnessGestureState::onDragEnd,
+                        )
+                    }
                 }
                 .pointerInput(
                     controlsVisibilityState.controlsLocked,
@@ -91,14 +132,14 @@ fun PlayerGestures(
                     detectCustomTransformGestures(
                         onGesture = { _, panChange, zoomChange, _ ->
                             if (tapGestureState.isLongPressGestureInAction) return@detectCustomTransformGestures
-                            videoZoomAndContentScaleState.onZoomPanGesture(
+                            videoTransformState.onZoomPanGesture(
                                 constraints = this@BoxWithConstraints.constraints,
                                 panChange = panChange,
                                 zoomChange = zoomChange,
                             )
                         },
                         onGestureEnd = {
-                            videoZoomAndContentScaleState.onZoomPanGestureEnd()
+                            videoTransformState.onZoomPanGestureEnd()
                         },
                     )
                 },

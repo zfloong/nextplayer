@@ -45,7 +45,7 @@ class PlayerViewModelTest {
                 context = RuntimeEnvironment.getApplication(),
                 defaultDispatcher = dispatcher,
             ),
-            output = PlayerViewModel.Output({}, {}, {}, {}, {}, {}, {}),
+            output = PlayerViewModel.Output({}, {}, {}, {}, {}, {}),
         )
     }
 

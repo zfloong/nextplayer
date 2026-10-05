@@ -32,7 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,23 +47,23 @@ import androidx.media3.common.util.Util.getStringForTime
 import androidx.media3.ui.compose.state.ProgressStateWithTickInterval
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import dev.anilbeesetti.nextplayer.core.common.extensions.isTelevision
-import dev.anilbeesetti.nextplayer.core.model.VideoContentScale
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.extensions.copy
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
-import dev.anilbeesetti.nextplayer.feature.player.buttons.LoopButton
+import dev.anilbeesetti.nextplayer.feature.player.buttons.PlaybackModeButton
 import dev.anilbeesetti.nextplayer.feature.player.buttons.PlaybackSpeedButton
 import dev.anilbeesetti.nextplayer.feature.player.buttons.PlayerButton
 import dev.anilbeesetti.nextplayer.feature.player.buttons.PlayerButtonBlackAlpha
 import dev.anilbeesetti.nextplayer.feature.player.buttons.RotateButton
-import dev.anilbeesetti.nextplayer.feature.player.buttons.ShuffleButton
-import dev.anilbeesetti.nextplayer.feature.player.extensions.drawableRes
 import dev.anilbeesetti.nextplayer.feature.player.state.ChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.ui.preview.rememberPreviewPlayer
 import dev.anilbeesetti.nextplayer.feature.player.ui.titleOrDefault
 
 private const val MILLISECONDS_PER_SECOND = 1_000L
+const val LOCK_CONTROLS_TEST_TAG = "lockControls"
+const val PICTURE_IN_PICTURE_TEST_TAG = "pictureInPicture"
+const val CONTENT_ROTATE_TEST_TAG = "contentRotate"
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -71,17 +73,16 @@ fun ControlsBottomView(
     progressState: ProgressStateWithTickInterval,
     chaptersState: ChaptersState,
     controlsAlignment: Alignment.Horizontal,
-    videoContentScale: VideoContentScale,
     isPipSupported: Boolean,
+    isPortrait: Boolean,
     showRemainingTime: Boolean,
     onToggleTimeDisplay: () -> Unit,
     onChaptersClick: () -> Unit,
-    onVideoContentScaleClick: () -> Unit,
-    onVideoContentScaleLongClick: () -> Unit,
     onLockControlsClick: () -> Unit,
     onPictureInPictureClick: () -> Unit,
+    onContentRotateClick: () -> Unit,
+    contentRotated: Boolean,
     onPlaybackSpeedClick: () -> Unit,
-    onPlayInBackgroundClick: () -> Unit,
     onSeek: (Long) -> Unit,
     onSeekEnd: () -> Unit,
 ) {
@@ -195,37 +196,39 @@ fun ControlsBottomView(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, alignment = controlsAlignment),
         ) {
-            PlayerButton(onClick = onLockControlsClick) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_lock_open),
-                    contentDescription = null,
-                )
+            if (!isPortrait) {
+                PlayerButton(
+                    modifier = Modifier.testTag(LOCK_CONTROLS_TEST_TAG),
+                    onClick = onLockControlsClick,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lock_open),
+                        contentDescription = null,
+                    )
+                }
             }
-            PlayerButton(
-                onClick = onVideoContentScaleClick,
-                onLongClick = onVideoContentScaleLongClick,
-            ) {
-                Icon(
-                    painter = painterResource(videoContentScale.drawableRes()),
-                    contentDescription = null,
-                )
-            }
-            if (isPipSupported) {
-                PlayerButton(onClick = onPictureInPictureClick) {
+            if (isPipSupported && !isPortrait) {
+                PlayerButton(
+                    modifier = Modifier.testTag(PICTURE_IN_PICTURE_TEST_TAG),
+                    onClick = onPictureInPictureClick,
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_pip),
                         contentDescription = null,
                     )
                 }
             }
-            PlayerButton(onClick = onPlayInBackgroundClick) {
+            PlayerButton(
+                modifier = Modifier.testTag(CONTENT_ROTATE_TEST_TAG),
+                onClick = onContentRotateClick,
+            ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_headset),
-                    contentDescription = null,
+                    painter = painterResource(R.drawable.ic_rotate_half),
+                    contentDescription = stringResource(R.string.rotate_video_180),
+                    tint = if (contentRotated) MaterialTheme.colorScheme.primary else Color.Unspecified,
                 )
             }
-            LoopButton(player = player)
-            ShuffleButton(player = player)
+            PlaybackModeButton(player = player)
         }
     }
 }
@@ -243,17 +246,16 @@ private fun ControlsBottomViewPreview() {
                 progressState = progressState,
                 chaptersState = rememberChaptersState(player, progressState),
                 controlsAlignment = Alignment.Start,
-                videoContentScale = VideoContentScale.BEST_FIT,
                 isPipSupported = true,
+                isPortrait = false,
                 showRemainingTime = false,
                 onToggleTimeDisplay = {},
                 onChaptersClick = {},
-                onVideoContentScaleClick = {},
-                onVideoContentScaleLongClick = {},
                 onLockControlsClick = {},
                 onPictureInPictureClick = {},
+                onContentRotateClick = {},
+                contentRotated = false,
                 onPlaybackSpeedClick = {},
-                onPlayInBackgroundClick = {},
                 onSeek = {},
                 onSeekEnd = {},
             )

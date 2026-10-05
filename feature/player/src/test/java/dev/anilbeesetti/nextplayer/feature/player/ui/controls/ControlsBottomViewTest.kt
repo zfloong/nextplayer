@@ -13,7 +13,9 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
@@ -31,7 +33,6 @@ import androidx.media3.extractor.metadata.Chapter
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import dev.anilbeesetti.nextplayer.core.model.VideoContentScale
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberChaptersState
 import org.junit.Assert.assertEquals
@@ -130,7 +131,51 @@ class ControlsBottomViewTest {
         }
     }
 
-    private fun showControls(player: Player) {
+    @Test
+    fun portraitHidesLockAndPictureInPictureButtons() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player, isPortrait = true, isPipSupported = true)
+            composeRule.onNodeWithTag(LOCK_CONTROLS_TEST_TAG).assertDoesNotExist()
+            composeRule.onNodeWithTag(PICTURE_IN_PICTURE_TEST_TAG).assertDoesNotExist()
+            composeRule.onNodeWithTag(CONTENT_ROTATE_TEST_TAG).assertExists()
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    @Test
+    fun landscapeShowsLockPictureInPictureAndRotateButtons() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player, isPortrait = false, isPipSupported = true)
+            composeRule.onNodeWithTag(LOCK_CONTROLS_TEST_TAG).assertExists()
+            composeRule.onNodeWithTag(PICTURE_IN_PICTURE_TEST_TAG).assertExists()
+            composeRule.onNodeWithTag(CONTENT_ROTATE_TEST_TAG).assertExists()
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    @Test
+    fun rotateButtonInvokesCallback() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        var rotateClicks = 0
+        try {
+            showControls(player, onContentRotateClick = { rotateClicks++ })
+            composeRule.onNodeWithTag(CONTENT_ROTATE_TEST_TAG).performClick()
+            composeRule.runOnIdle { assertEquals(1, rotateClicks) }
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    private fun showControls(
+        player: Player,
+        isPortrait: Boolean = false,
+        isPipSupported: Boolean = false,
+        onContentRotateClick: () -> Unit = {},
+    ) {
         composeRule.setContent {
             NextPlayerTheme {
                 val progress = rememberProgressStateWithTickInterval(player)
@@ -140,17 +185,16 @@ class ControlsBottomViewTest {
                     progressState = progress,
                     chaptersState = rememberChaptersState(player, progress),
                     controlsAlignment = Alignment.Start,
-                    videoContentScale = VideoContentScale.BEST_FIT,
-                    isPipSupported = false,
+                    isPipSupported = isPipSupported,
+                    isPortrait = isPortrait,
                     showRemainingTime = showRemainingTime,
                     onToggleTimeDisplay = { showRemainingTime = !showRemainingTime },
                     onChaptersClick = {},
-                    onVideoContentScaleClick = {},
-                    onVideoContentScaleLongClick = {},
                     onLockControlsClick = {},
                     onPictureInPictureClick = {},
+                    onContentRotateClick = onContentRotateClick,
+                    contentRotated = false,
                     onPlaybackSpeedClick = {},
-                    onPlayInBackgroundClick = {},
                     onSeek = player::seekTo,
                     onSeekEnd = {},
                 )

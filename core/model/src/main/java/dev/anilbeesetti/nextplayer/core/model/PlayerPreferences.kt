@@ -9,13 +9,13 @@ data class PlayerPreferences(
     val playerBrightness: Float = 0.5f,
     val minDurationForFastSeek: Long = 120000L,
     val rememberSelections: Boolean = true,
-    val playerScreenOrientation: ScreenOrientation = ScreenOrientation.VIDEO_ORIENTATION,
-    val playerVideoZoom: VideoContentScale = VideoContentScale.BEST_FIT,
+    val playerScreenOrientation: ScreenOrientation = ScreenOrientation.PORTRAIT,
     val defaultPlaybackSpeed: Float = 1.0f,
     val autoplay: Boolean = true,
     val autoPip: Boolean = true,
     val autoBackgroundPlay: Boolean = false,
     val loopMode: LoopMode = LoopMode.OFF,
+    val shuffleModeEnabled: Boolean = false,
 
     // Controls (Gestures)
     @Deprecated(message = "Use individual enableVolumeSwipeGesture and enableBrightnessSwipeGesture instead")

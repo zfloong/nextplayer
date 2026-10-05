@@ -98,13 +98,47 @@ class ControlsMiddleViewTest {
         }
     }
 
-    private fun showControls(player: Player, groupFocusRequester: FocusRequester) {
+    @Test
+    fun landscapeGrowPreviousAndNextButtonsToPlayPauseSize() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player, FocusRequester(), isPortrait = false)
+            val playPauseWidth = widthOf(composeRule.activity.getString(R.string.play_pause))
+            assertEquals(playPauseWidth, widthOf(composeRule.activity.getString(R.string.player_controls_next)), 0.5f)
+            assertEquals(playPauseWidth, widthOf(composeRule.activity.getString(R.string.player_controls_previous)), 0.5f)
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    @Test
+    fun portraitKeepsPreviousAndNextButtonsCompact() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player, FocusRequester(), isPortrait = true)
+            val playPauseWidth = widthOf(composeRule.activity.getString(R.string.play_pause))
+            assertTrue(widthOf(composeRule.activity.getString(R.string.player_controls_next)) < playPauseWidth)
+            assertTrue(widthOf(composeRule.activity.getString(R.string.player_controls_previous)) < playPauseWidth)
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    private fun widthOf(contentDescription: String): Float =
+        composeRule.onNodeWithContentDescription(contentDescription).fetchSemanticsNode().boundsInRoot.width
+
+    private fun showControls(
+        player: Player,
+        groupFocusRequester: FocusRequester,
+        isPortrait: Boolean = false,
+    ) {
         composeRule.setContent {
             NextPlayerTheme {
                 Column {
                     ControlsMiddleView(
                         modifier = Modifier.focusRequester(groupFocusRequester),
                         player = player,
+                        isPortrait = isPortrait,
                     )
                     Button(
                         modifier = Modifier.testTag("other-control"),
