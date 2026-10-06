@@ -10,6 +10,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -112,13 +113,56 @@ class ControlsMiddleViewTest {
     }
 
     @Test
-    fun portraitKeepsPreviousAndNextButtonsCompact() {
+    fun portraitRendersNoCenterControls() {
         val player = composeRule.runOnIdle { TestPlayer() }
         try {
             showControls(player, FocusRequester(), isPortrait = true)
-            val playPauseWidth = widthOf(composeRule.activity.getString(R.string.play_pause))
-            assertTrue(widthOf(composeRule.activity.getString(R.string.player_controls_next)) < playPauseWidth)
-            assertTrue(widthOf(composeRule.activity.getString(R.string.player_controls_previous)) < playPauseWidth)
+            composeRule
+                .onNodeWithContentDescription(composeRule.activity.getString(R.string.play_pause))
+                .assertDoesNotExist()
+            composeRule
+                .onNodeWithContentDescription(composeRule.activity.getString(R.string.player_controls_next))
+                .assertDoesNotExist()
+            composeRule
+                .onNodeWithContentDescription(composeRule.activity.getString(R.string.player_controls_previous))
+                .assertDoesNotExist()
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    @Test
+    fun pausedPortraitShowsThePlayTriangle() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player, FocusRequester(), isPortrait = true)
+            val indicator = composeRule.onNodeWithTag(PORTRAIT_PAUSE_INDICATOR_TEST_TAG)
+            indicator.assertIsDisplayed()
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    @Test
+    fun playingPortraitHidesThePlayTriangle() {
+        val player = composeRule.runOnIdle { TestPlayer(playWhenReady = true) }
+        try {
+            showControls(player, FocusRequester(), isPortrait = true)
+            composeRule.onNodeWithTag(PORTRAIT_PAUSE_INDICATOR_TEST_TAG).assertDoesNotExist()
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    @Test
+    fun landscapeKeepsItsOwnPlayPauseButtonInsteadOfThePlayTriangle() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player, FocusRequester(), isPortrait = false)
+            composeRule.onNodeWithTag(PORTRAIT_PAUSE_INDICATOR_TEST_TAG).assertDoesNotExist()
+            composeRule
+                .onNodeWithContentDescription(composeRule.activity.getString(R.string.play_pause))
+                .assertIsDisplayed()
         } finally {
             composeRule.runOnIdle { player.release() }
         }
@@ -151,7 +195,7 @@ class ControlsMiddleViewTest {
         }
     }
 
-    private class TestPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
+    private class TestPlayer(playWhenReady: Boolean = false) : SimpleBasePlayer(Looper.getMainLooper()) {
         private var state = State.Builder()
             .setAvailableCommands(
                 Player.Commands.Builder()
@@ -168,6 +212,7 @@ class ControlsMiddleViewTest {
             .setCurrentMediaItemIndex(1)
             .setContentPositionMs(0)
             .setPlaybackState(Player.STATE_READY)
+            .setPlayWhenReady(playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
             .build()
 
         override fun getState(): State = state

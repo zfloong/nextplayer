@@ -26,7 +26,7 @@ class PlaybackModeButtonTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun pressingButtonCyclesThroughTheFourPlaybackModes() {
+    fun pressingButtonCyclesThroughTheThreeLoopOrders() {
         val player = composeRule.runOnIdle { TestPlayer() }
         try {
             composeRule.setContent {
@@ -36,16 +36,15 @@ class PlaybackModeButtonTest {
             }
             val button = composeRule.onNodeWithTag(PLAYBACK_MODE_TEST_TAG)
             val expectedModes = listOf(
-                true to Player.REPEAT_MODE_OFF,
-                false to Player.REPEAT_MODE_ALL,
-                false to Player.REPEAT_MODE_ONE,
-                false to Player.REPEAT_MODE_OFF,
+                Player.REPEAT_MODE_ALL,
+                Player.REPEAT_MODE_ONE,
+                Player.REPEAT_MODE_OFF,
             )
 
-            for ((shuffleOn, repeatMode) in expectedModes) {
+            for (repeatMode in expectedModes) {
                 button.performClick()
                 composeRule.runOnIdle {
-                    assertEquals(shuffleOn, player.shuffleModeEnabled)
+                    assertEquals(false, player.shuffleModeEnabled)
                     assertEquals(repeatMode, player.repeatMode)
                 }
             }
@@ -64,7 +63,7 @@ class PlaybackModeButtonTest {
                 }
             }
             val button = composeRule.onNodeWithTag(PLAYBACK_MODE_TEST_TAG)
-            val expectedLabels = listOf(R.string.shuffle_on, R.string.loop_mode_all, R.string.loop_mode_one, R.string.loop_mode_off)
+            val expectedLabels = listOf(R.string.loop_mode_all, R.string.loop_mode_one, R.string.loop_mode_off)
 
             for (label in expectedLabels) {
                 button.performClick()
@@ -75,18 +74,21 @@ class PlaybackModeButtonTest {
         }
     }
 
+    /**
+     * The player offers no shuffle command, so a leftover attempt to switch shuffle on fails the click
+     * instead of passing a weaker assertion.
+     */
     @Test
-    fun shuffleTakesPrecedenceOverLooping() {
-        val player = composeRule.runOnIdle { TestPlayer(shuffleOn = true, repeatMode = Player.REPEAT_MODE_ALL) }
+    fun storedShufflePreferenceNoLongerReachesThePlayer() {
+        val player = composeRule.runOnIdle { TestPlayer() }
         try {
             composeRule.setContent {
                 NextPlayerTheme {
                     PlaybackModeButton(player = player)
                 }
             }
-            composeRule.onNodeWithTag(PLAYBACK_MODE_TEST_TAG)
-                .assertContentDescriptionEquals(composeRule.activity.getString(R.string.shuffle_on))
-                .performClick()
+
+            composeRule.onNodeWithTag(PLAYBACK_MODE_TEST_TAG).performClick()
             composeRule.runOnIdle {
                 assertEquals(false, player.shuffleModeEnabled)
                 assertEquals(Player.REPEAT_MODE_ALL, player.repeatMode)
@@ -97,7 +99,6 @@ class PlaybackModeButtonTest {
     }
 
     private class TestPlayer(
-        shuffleOn: Boolean = false,
         @Player.RepeatMode repeatMode: Int = Player.REPEAT_MODE_OFF,
     ) : SimpleBasePlayer(Looper.getMainLooper()) {
         private var state = State.Builder()
@@ -106,14 +107,12 @@ class PlaybackModeButtonTest {
                     .addAll(
                         Player.COMMAND_GET_TIMELINE,
                         Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
-                        Player.COMMAND_SET_SHUFFLE_MODE,
                         Player.COMMAND_SET_REPEAT_MODE,
                     )
                     .build(),
             )
             .setPlaylist(listOf(MediaItemData.Builder("item").setDurationUs(60_000_000).build()))
             .setPlaybackState(Player.STATE_READY)
-            .setShuffleModeEnabled(shuffleOn)
             .setRepeatMode(repeatMode)
             .build()
 
@@ -121,11 +120,6 @@ class PlaybackModeButtonTest {
 
         override fun handleSetRepeatMode(repeatMode: Int): ListenableFuture<*> {
             state = state.buildUpon().setRepeatMode(repeatMode).build()
-            return Futures.immediateVoidFuture()
-        }
-
-        override fun handleSetShuffleModeEnabled(shuffleModeEnabled: Boolean): ListenableFuture<*> {
-            state = state.buildUpon().setShuffleModeEnabled(shuffleModeEnabled).build()
             return Futures.immediateVoidFuture()
         }
     }

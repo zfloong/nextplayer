@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.media3.common.Player
 import dev.anilbeesetti.nextplayer.feature.player.extensions.detectCustomHorizontalDragGestures
 import dev.anilbeesetti.nextplayer.feature.player.extensions.detectCustomTransformGestures
 import dev.anilbeesetti.nextplayer.feature.player.extensions.detectCustomVerticalDragGestures
+import dev.anilbeesetti.nextplayer.feature.player.state.ControlBarHeights
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.PictureInPictureState
 import dev.anilbeesetti.nextplayer.feature.player.state.SeekGestureState
@@ -37,9 +39,57 @@ internal fun swipeToChangeItemDirection(
     }
 }
 
+/**
+ * Portrait taps are zoned by the measured control bars, not by fixed screen fractions: the title row
+ * and the seekbar row sit at the edges, and their heights change with the font scale, the system bar
+ * insets and whether the chapter chip is shown.
+ */
+internal fun isControlBarTapRegion(
+    tapY: Float,
+    screenHeight: Int,
+    controlBarHeights: ControlBarHeights,
+): Boolean {
+    if (tapY < controlBarHeights.top) return true
+    return tapY >= screenHeight - controlBarHeights.bottom
+}
+
+/**
+ * A tap over a control bar only folds the controls away; a tap on the video strip between them is
+ * pause/resume. Pausing must also show the controls: while paused they never auto-hide, and they hold
+ * the only seekbar. Landscape and hidden-controls taps keep a single behaviour.
+ */
+internal fun handleSingleTap(
+    isPortrait: Boolean,
+    tapY: Float,
+    screenHeight: Int,
+    controlBarHeights: ControlBarHeights,
+    player: Player,
+    controlsVisibilityState: ControlsVisibilityState,
+) {
+    if (!isPortrait) {
+        controlsVisibilityState.toggleControlsVisibility()
+        return
+    }
+    val overControlBar = controlsVisibilityState.controlsVisible &&
+        isControlBarTapRegion(tapY, screenHeight, controlBarHeights)
+    if (overControlBar) {
+        controlsVisibilityState.hideControls()
+        return
+    }
+    when (player.isPlaying) {
+        true -> {
+            player.pause()
+            controlsVisibilityState.showControls()
+        }
+
+        false -> player.play()
+    }
+}
+
 @Composable
 fun PlayerGestures(
     modifier: Modifier = Modifier,
+    player: Player,
     controlsVisibilityState: ControlsVisibilityState,
     tapGestureState: TapGestureState,
     pictureInPictureState: PictureInPictureState,
@@ -47,6 +97,7 @@ fun PlayerGestures(
     videoTransformState: VideoTransformState,
     volumeAndBrightnessGestureState: VolumeAndBrightnessGestureState,
     isPortrait: Boolean,
+    controlBarHeights: ControlBarHeights,
     onSwipeToPreviousItem: () -> Unit,
     onSwipeToNextItem: () -> Unit,
 ) {
@@ -54,13 +105,23 @@ fun PlayerGestures(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .pointerInput(pictureInPictureState.isInPictureInPictureMode) {
+                .pointerInput(
+                    isPortrait,
+                    pictureInPictureState.isInPictureInPictureMode,
+                ) {
                     if (pictureInPictureState.isInPictureInPictureMode) return@pointerInput
 
                     detectTapGestures(
-                        onTap = {
+                        onTap = { offset ->
                             if (tapGestureState.seekMillis != 0L) return@detectTapGestures
-                            controlsVisibilityState.toggleControlsVisibility()
+                            handleSingleTap(
+                                isPortrait = isPortrait,
+                                tapY = offset.y,
+                                screenHeight = size.height,
+                                controlBarHeights = controlBarHeights,
+                                player = player,
+                                controlsVisibilityState = controlsVisibilityState,
+                            )
                         },
                         onDoubleTap = {
                             if (controlsVisibilityState.controlsLocked) return@detectTapGestures

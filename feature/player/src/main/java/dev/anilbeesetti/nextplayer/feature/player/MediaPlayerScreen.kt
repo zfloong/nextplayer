@@ -26,6 +26,7 @@ import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.PlayerOrientationEffect
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberBrightnessState
+import dev.anilbeesetti.nextplayer.feature.player.state.rememberControlBarHeights
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberErrorState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberPictureInPictureState
@@ -88,6 +89,7 @@ internal fun MediaPlayerContent(
         player = player,
         hideAfter = playerPreferences.controllerAutoHideTimeout.seconds,
     )
+    val controlBarHeights = rememberControlBarHeights()
     val tapGestureState = rememberTapGestureState(
         player = player,
         doubleTapGesture = playerPreferences.doubleTapGesture,
@@ -171,6 +173,7 @@ internal fun MediaPlayerContent(
             )
             if (volumeAndBrightnessGestureState != null) {
                 PlayerGestures(
+                    player = player,
                     controlsVisibilityState = controlsVisibilityState,
                     tapGestureState = tapGestureState,
                     pictureInPictureState = pictureInPictureState,
@@ -178,6 +181,7 @@ internal fun MediaPlayerContent(
                     videoTransformState = videoTransformState,
                     volumeAndBrightnessGestureState = volumeAndBrightnessGestureState,
                     isPortrait = isPortrait,
+                    controlBarHeights = controlBarHeights,
                     onSwipeToPreviousItem = { player.seekToPreviousMediaItem() },
                     onSwipeToNextItem = { player.seekToNextMediaItem() },
                 )
@@ -192,6 +196,7 @@ internal fun MediaPlayerContent(
             seekGestureState = seekGestureState,
             videoTransformState = videoTransformState,
             isPipSupported = pictureInPictureState?.isPipSupported == true,
+            controlBarHeights = controlBarHeights,
             onPictureInPictureClick = {
                 pictureInPictureState?.let {
                     if (!it.hasPipPermission) {

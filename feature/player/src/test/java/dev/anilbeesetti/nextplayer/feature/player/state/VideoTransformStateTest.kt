@@ -1,10 +1,15 @@
 package dev.anilbeesetti.nextplayer.feature.player.state
 
 import android.os.Looper
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.Constraints
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -12,6 +17,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -20,6 +26,10 @@ import org.robolectric.shadows.ShadowLooper
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class VideoTransformStateTest {
+
+    @get:Rule
+    val composeRule = createComposeRule()
+
     @Test
     fun rotateCanvasTogglesBetweenUprightAndHalfTurn() {
         val player = TestPlayer(playerState(2))
@@ -116,6 +126,41 @@ class VideoTransformStateTest {
             assertEquals(1f, state.zoom, 0.001f)
             assertEquals(Offset.Zero, state.offset)
             assertEquals(false, state.isZooming)
+        } finally {
+            player.release()
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun changingGestureSettingsRebuildsTheStateAndItsObserver() {
+        val player = TestPlayer(playerState(2))
+        val zoomEnabled = mutableStateOf(true)
+        val built = mutableListOf<VideoTransformState>()
+        try {
+            composeRule.setContent {
+                built += rememberVideoTransformState(
+                    player = player,
+                    enableZoomGesture = zoomEnabled.value,
+                    enablePanGesture = true,
+                    onEvent = {},
+                )
+            }
+            composeRule.waitForIdle()
+            assertEquals(1, built.distinct().size)
+
+            composeRule.runOnIdle { zoomEnabled.value = false }
+            composeRule.waitForIdle()
+
+            assertEquals("a new settings value must build a new state", 2, built.distinct().size)
+            val rebuilt = built.last()
+            rebuilt.rotateCanvas()
+            assertEquals(180, rebuilt.rotationDegrees)
+
+            // Only an observer attached to the *rebuilt* instance can clear its rotation.
+            player.update(player.currentState.buildUpon().setCurrentMediaItemIndex(1).build())
+            composeRule.waitForIdle()
+            assertEquals(0, rebuilt.rotationDegrees)
         } finally {
             player.release()
         }

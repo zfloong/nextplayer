@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -18,6 +19,7 @@ import androidx.media3.ui.compose.state.ProgressStateWithTickInterval
 import dev.anilbeesetti.nextplayer.core.model.ControlButtonsPosition
 import dev.anilbeesetti.nextplayer.core.model.PlayerPreferences
 import dev.anilbeesetti.nextplayer.feature.player.state.ChaptersState
+import dev.anilbeesetti.nextplayer.feature.player.state.ControlBarHeights
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.SeekGestureState
 import dev.anilbeesetti.nextplayer.feature.player.state.VideoTransformState
@@ -44,6 +46,7 @@ fun PlayerControls(
     progressState: ProgressStateWithTickInterval,
     chaptersState: ChaptersState,
     isPipSupported: Boolean,
+    controlBarHeights: ControlBarHeights,
     onShowOverlay: (OverlayView) -> Unit,
     onBackClick: () -> Unit,
     onToggleTimeDisplay: () -> Unit,
@@ -59,6 +62,7 @@ fun PlayerControls(
         Column {
             AnimatedVisibility(
                 visible = controlsVisibilityState.controlsVisible,
+                modifier = Modifier.onSizeChanged { controlBarHeights.top = it.height },
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
@@ -75,6 +79,7 @@ fun PlayerControls(
             Spacer(modifier = Modifier.weight(1f))
             AnimatedVisibility(
                 visible = controlsVisibilityState.controlsVisible && !controlsVisibilityState.controlsLocked,
+                modifier = Modifier.onSizeChanged { controlBarHeights.bottom = it.height },
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {

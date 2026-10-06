@@ -33,6 +33,7 @@ import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import dev.anilbeesetti.nextplayer.core.common.extensions.isTelevision
 import dev.anilbeesetti.nextplayer.core.ui.components.requestFocusUntilLanded
 import dev.anilbeesetti.nextplayer.core.ui.components.thenIf
+import dev.anilbeesetti.nextplayer.feature.player.state.ControlBarHeights
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.SeekGestureState
 import dev.anilbeesetti.nextplayer.feature.player.state.TapGestureState
@@ -59,6 +60,7 @@ internal fun MediaPlayerControls(
     seekGestureState: SeekGestureState,
     videoTransformState: VideoTransformState,
     isPipSupported: Boolean,
+    controlBarHeights: ControlBarHeights,
     onPictureInPictureClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -162,6 +164,7 @@ internal fun MediaPlayerControls(
                     progressState = progressState,
                     chaptersState = chaptersState,
                     isPipSupported = isPipSupported,
+                    controlBarHeights = controlBarHeights,
                     onShowOverlay = ::showOverlay,
                     onBackClick = { onAction(PlayerAction.NavigateUp) },
                     onToggleTimeDisplay = { onAction(PlayerAction.ToggleTimeDisplay) },

@@ -28,7 +28,7 @@ fun rememberVideoTransformState(
     enablePanGesture: Boolean,
     onEvent: (VideoZoomEvent) -> Unit = {},
 ): VideoTransformState {
-    val videoTransformState = remember(player) {
+    val videoTransformState = remember(player, enableZoomGesture, enablePanGesture) {
         VideoTransformState(
             player = player,
             enableZoomGesture = enableZoomGesture,
@@ -36,7 +36,7 @@ fun rememberVideoTransformState(
             onEvent = onEvent,
         )
     }
-    LaunchedEffect(player) { videoTransformState.observe() }
+    LaunchedEffect(videoTransformState) { videoTransformState.observe() }
     return videoTransformState
 }
 
