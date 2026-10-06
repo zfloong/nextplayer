@@ -22,7 +22,8 @@ class DefaultSmbHostScanner : SmbHostScanner {
         candidates.forEach { address ->
             launch(io) {
                 if (!probeSmbPort(address)) return@launch
-                trySend(DiscoveredSmbHost(address = address, name = resolveName(address)))
+                // send, not trySend: a full buffer must wait instead of dropping the host.
+                send(DiscoveredSmbHost(address = address, name = resolveName(address)))
             }
         }
     }

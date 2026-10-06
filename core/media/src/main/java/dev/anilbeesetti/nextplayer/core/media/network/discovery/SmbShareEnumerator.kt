@@ -124,6 +124,11 @@ class DefaultSmbShareEnumerator : SmbShareEnumerator {
             if (count > 0 && r.u32() != count) {
                 throw SmbEnumerationException("NetrShareEnum max count mismatch")
             }
+            // Conformant array elements are 12 bytes each: a count the stub cannot hold is malformed,
+            // and must not reach ArrayList's capacity argument.
+            if (count > r.remaining / 12) {
+                throw SmbEnumerationException("NetrShareEnum entry count exceeds the stub size")
+            }
             val fixed = ArrayList<Triple<Long, Long, Long>>(count.toInt())
             repeat(count.toInt()) { fixed += Triple(r.u32(), r.u32(), r.u32()) }
             val entries = ArrayList<SmbShareEntry>(count.toInt())

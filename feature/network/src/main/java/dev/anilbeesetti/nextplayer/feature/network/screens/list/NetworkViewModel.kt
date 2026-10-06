@@ -137,7 +137,14 @@ class NetworkViewModel(
                 }
                 return@launch
             }
-            addAllShares(action.host, shares)
+            try {
+                addAllShares(action.host, shares)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                stateInternal.update { it.copy(connectFlow = HostConnectFlow.Credentials(action.host, failed = true)) }
+                return@launch
+            }
             pendingCredentials = null
             stateInternal.update { it.copy(connectFlow = HostConnectFlow.None) }
         }

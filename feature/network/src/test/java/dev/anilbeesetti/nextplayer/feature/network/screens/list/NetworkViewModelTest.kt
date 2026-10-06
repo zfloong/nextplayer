@@ -382,6 +382,29 @@ class NetworkViewModelTest {
         }
 
     @Test
+    fun `share save failure reports failure instead of leaving the dialog enumerating`() =
+        runTest(mainDispatcherRule.testDispatcher) {
+            val repository = FakeNetworkConnectionRepository(
+                connection = null,
+                events = mutableListOf(),
+                upsertFailure = IOException("database full"),
+            )
+            val viewModel = viewModelWith(
+                enumerator = FakeSmbShareEnumerator(listOf(SmbShareEntry("Data", 0, ""))),
+                repository = repository,
+            )
+
+            viewModel.onAction(NetworkAction.PickDiscoveredHost("192.168.1.24"))
+            viewModel.onAction(NetworkAction.SubmitCredentials("192.168.1.24", "smbuser", "secret"))
+            advanceUntilIdle()
+
+            assertEquals(
+                HostConnectFlow.Credentials("192.168.1.24", failed = true),
+                viewModel.state.value.connectFlow,
+            )
+        }
+
+    @Test
     fun `failed enumeration offers manual entry through the prefilled form`() =
         runTest(mainDispatcherRule.testDispatcher) {
             val connected = mutableListOf<String>()

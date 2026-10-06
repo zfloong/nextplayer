@@ -38,7 +38,7 @@ internal class DcerpcOverPipe(private val pipe: NamedPipe) {
             if (read <= 0) break
             received.write(buffer, 0, read)
         }
-        return joinStub(received.toByteArray())
+        return joinDcerpcStub(received.toByteArray())
     }
 
     private fun pdu(ptype: Int, body: ByteArrayOutputStream): ByteArray {
@@ -81,29 +81,9 @@ internal class DcerpcOverPipe(private val pipe: NamedPipe) {
         return false
     }
 
-    private fun joinStub(bytes: ByteArray): ByteArray {
-        val stub = ByteArrayOutputStream()
-        var offset = 0
-        while (offset + RESPONSE_HEADER_LEN <= bytes.size) {
-            val fragLen = le16(bytes, offset + 8)
-            when (bytes[offset + 2].toInt()) {
-                PTYPE_RESPONSE -> stub.write(bytes, offset + RESPONSE_HEADER_LEN, fragLen - RESPONSE_HEADER_LEN)
-                PTYPE_FAULT -> throw SmbEnumerationException(
-                    "DCERPC fault (status=0x%08x)".format(le32(bytes, offset + 24)),
-                )
-                else -> throw SmbEnumerationException("Unexpected DCERPC PDU type")
-            }
-            offset += fragLen
-        }
-        return stub.toByteArray()
-    }
-
     private companion object {
         const val HEADER_LEN = 16
-        const val RESPONSE_HEADER_LEN = 24
         const val PTYPE_REQUEST = 0
-        const val PTYPE_RESPONSE = 2
-        const val PTYPE_FAULT = 3
         const val PTYPE_BIND = 11
         const val PTYPE_BIND_ACK = 12
         const val PFC_LAST_FRAG = 0x02
@@ -123,6 +103,33 @@ internal class DcerpcOverPipe(private val pipe: NamedPipe) {
             0x02, 0x00, 0x00, 0x00,
         )
     }
+}
+
+private const val RESPONSE_HEADER_LEN = 24
+private const val PTYPE_RESPONSE = 2
+private const val PTYPE_FAULT = 3
+
+/** C706 12.6.4.4 fixes the response header at 24 bytes; a fault PDU adds its status word. */
+internal fun joinDcerpcStub(bytes: ByteArray): ByteArray {
+    val stub = ByteArrayOutputStream()
+    var offset = 0
+    while (offset + RESPONSE_HEADER_LEN <= bytes.size) {
+        val fragLen = le16(bytes, offset + 8)
+        val pduType = bytes[offset + 2].toInt()
+        val minLength = if (pduType == PTYPE_FAULT) RESPONSE_HEADER_LEN + 4 else RESPONSE_HEADER_LEN
+        if (fragLen < minLength || bytes.size - offset < fragLen) {
+            throw SmbEnumerationException("Invalid DCERPC fragment length")
+        }
+        when (pduType) {
+            PTYPE_RESPONSE -> stub.write(bytes, offset + RESPONSE_HEADER_LEN, fragLen - RESPONSE_HEADER_LEN)
+            PTYPE_FAULT -> throw SmbEnumerationException(
+                "DCERPC fault (status=0x%08x)".format(le32(bytes, offset + RESPONSE_HEADER_LEN)),
+            )
+            else -> throw SmbEnumerationException("Unexpected DCERPC PDU type")
+        }
+        offset += fragLen
+    }
+    return stub.toByteArray()
 }
 
 /** NDR fields are 4-byte aligned relative to the stub start, except UTF-16 string data. */
@@ -150,9 +157,12 @@ internal class NdrWriter {
 internal class NdrReader(private val bytes: ByteArray) {
     private var offset = 0
 
+    val remaining: Int
+        get() = bytes.size - offset
+
     fun u32(): Long {
         offset = (offset + 3) and 3.inv()
-        require(offset + 4 <= bytes.size) { "NDR underflow" }
+        if (offset + 4 > bytes.size) throw SmbEnumerationException("NDR underflow")
         val value = le32(bytes, offset)
         offset += 4
         return value
@@ -162,10 +172,11 @@ internal class NdrReader(private val bytes: ByteArray) {
     fun deferredString(): String {
         u32() // max count
         u32() // offset
-        val actual = u32()
-        require(actual >= 0 && offset + (actual * 2).toInt() <= bytes.size) { "NDR string underflow" }
-        val text = String(bytes, offset, (actual * 2).toInt(), StandardCharsets.UTF_16LE)
-        offset += (actual * 2).toInt()
+        val byteLength = u32() * 2
+        if (byteLength > bytes.size - offset) throw SmbEnumerationException("NDR string underflow")
+        val size = byteLength.toInt()
+        val text = String(bytes, offset, size, StandardCharsets.UTF_16LE)
+        offset += size
         offset = (offset + 3) and 3.inv()
         return text.trimEnd('\u0000')
     }
