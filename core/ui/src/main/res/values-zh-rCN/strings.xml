@@ -434,7 +434,14 @@
     <string name="remove_video">移除视频</string>
     <string name="reorder_playlist">重新为播放列表排序</string>
     <string name="finish_reordering">完成重新排序</string>
-    <string name="reorder_playlist_item">重新为播放列表项目排序</string>
+    <string name="reorder_playlist_item">调整列表项顺序</string>
+    <string name="sort_playlist">播放列表排序</string>
+    <string name="sort_name_ascending">名称升序</string>
+    <string name="sort_name_descending">名称降序</string>
+    <string name="sort_duration_ascending">时长升序</string>
+    <string name="sort_duration_descending">时长降序</string>
+    <string name="sort_shuffle">随机打乱</string>
+    <string name="sort_restore_added_order">恢复加入顺序</string>
     <string name="empty_playlist_title">此播放列表为空</string>
     <string name="search_playlist">搜索播放列表</string>
     <string name="close_search">关闭搜索</string>
@@ -444,6 +451,7 @@
     <string name="no_playlists_description">创建本地播放列表或添加 M3U 源以开始观看</string>
     <string name="delete_playlist_confirmation">删除“%1$s”及其保存的顺序吗？</string>
     <string name="play_all">全部播放</string>
+    <string name="continue_playback">继续播放</string>
     <string name="remove_video_confirmation">从此播放列表移除“%1$s”吗？</string>
     <string name="empty_playlist_description">在主页选择视频并选择“添加到播放列表”</string>
     <string name="playlist_unavailable">此播放列表不再可用</string>
@@ -531,4 +539,12 @@
     <string name="show_chapters">显示章节</string>
     <string name="chapters">章节</string>
     <string name="chapter_number">第 %1$d 章</string>
+    <string name="mark_new_media">把新添加的视频标记为「新」</string>
+    <string name="new_label">新</string>
+    <plurals name="days_count">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
+    <plurals name="new_videos_count">
+        <item quantity="other">%1$d 个新视频</item>
+    </plurals>
 </resources>

@@ -41,7 +41,11 @@ interface PlaylistRepository {
 
     suspend fun removeVideo(playlistId: Long, videoUri: String)
 
+    /** Rewrites `position`; allowed for local playlists and network snapshots, not for linked M3U lists. */
     suspend fun replaceOrder(playlistId: Long, orderedUris: List<String>)
+
+    /** Puts the rows back into the order they were first added. */
+    suspend fun restoreInsertionOrder(playlistId: Long)
 
     suspend fun markVideoPlayed(playlistId: Long, videoUri: String)
 

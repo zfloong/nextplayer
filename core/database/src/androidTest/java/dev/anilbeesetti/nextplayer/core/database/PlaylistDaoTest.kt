@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,6 +67,56 @@ class PlaylistDaoTest {
             dao.getItems(playlistId).map { it.uri },
         )
         assertEquals(listOf(0, 1), dao.getItems(playlistId).map { it.position })
+    }
+
+    @Test
+    fun restoringInsertionOrderIgnoresTheStoredPositions() = runTest {
+        val playlistId = dao.createPlaylist(
+            "Movies",
+            listOf("content://one", "content://two", "content://three"),
+        )
+        dao.replaceOrder(playlistId, listOf("content://three", "content://one", "content://two"))
+
+        dao.restoreInsertionOrder(playlistId)
+
+        assertEquals(
+            listOf("content://one", "content://two", "content://three"),
+            dao.getItems(playlistId).map { it.uri },
+        )
+        assertEquals(listOf(0, 1, 2), dao.getItems(playlistId).map { it.position })
+    }
+
+    @Test
+    fun snapshotsAndLocalListsOwnTheirOrderWhileLinkedListsDoNot() = runTest {
+        val snapshotId = dao.insertPlaylist(PlaylistEntity(name = "Series", type = "NETWORK"))
+        dao.addItems(snapshotId, listOf("smb://nas/a.mp4", "smb://nas/b.mp4"))
+        val linkedId = dao.createM3UPlaylist(
+            playlist = PlaylistEntity(
+                name = "Channels",
+                type = "M3U_URL",
+                source = "https://example.com/list.m3u",
+            ),
+            items = listOf(
+                PlaylistItemEntity(0, "https://example.com/one", 0),
+                PlaylistItemEntity(0, "https://example.com/two", 1),
+            ),
+        )
+
+        dao.requireReorderablePlaylist(snapshotId)
+        dao.replaceOrder(snapshotId, listOf("smb://nas/b.mp4", "smb://nas/a.mp4"))
+
+        assertEquals(
+            listOf("smb://nas/b.mp4", "smb://nas/a.mp4"),
+            dao.getItems(snapshotId).map { it.uri },
+        )
+        // runCatching is inline: assertThrows cannot take a suspend call.
+        val linkedRejection = runCatching { dao.requireReorderablePlaylist(linkedId) }.exceptionOrNull()
+
+        assertEquals(
+            listOf("smb://nas/b.mp4", "smb://nas/a.mp4"),
+            dao.getItems(snapshotId).map { it.uri },
+        )
+        assertTrue(linkedRejection is IllegalArgumentException)
     }
 
     @Test
@@ -127,6 +178,25 @@ class PlaylistDaoTest {
                 "last_played_at",
             ),
             columns,
+        )
+    }
+
+    @Test
+    fun addAppendsAboveTheHighestPositionEvenWhenEarlierRowsLeaveAGap() = runTest {
+        val playlistId = dao.createPlaylist(
+            "Movies",
+            listOf("content://one", "content://two", "content://three"),
+        )
+        // Deleting without renumbering leaves a hole, so the row count 2 now points at an
+        // already occupied position.
+        dao.deleteItem(playlistId, "content://two")
+
+        val added = dao.addItems(playlistId, listOf("content://four"))
+
+        assertEquals(1, added)
+        assertEquals(
+            listOf("content://one", "content://three", "content://four"),
+            dao.getItems(playlistId).map { it.uri },
         )
     }
 

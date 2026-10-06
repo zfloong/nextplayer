@@ -55,11 +55,40 @@ data class PlaylistItem(
     val displayTitle: String
         get() = title?.takeIf(String::isNotBlank)
             ?: video?.displayName
-            ?: uri.substringBefore('?').substringAfterLast('/').substringBeforeLast('.')
+            ?: uri.substringBefore('?').substringAfterLast('/').decodePercentEscapes().substringBeforeLast('.')
                 .ifBlank { uri }
 
     val supportingText: String
-        get() = video?.parentPath?.takeIf(String::isNotBlank) ?: uri
+        get() = video?.parentPath?.takeIf(String::isNotBlank) ?: uri.decodePercentEscapes()
+}
+
+/**
+ * Restores the text behind `%XX` escapes. Network playlist rows store `Uri`-encoded paths and carry no
+ * title, so without this the user reads `%E6%97%A5` where the file is named in Japanese or Chinese.
+ * A `+` stays a `+` (form encoding would turn it into a space), and a run that is not valid UTF-8 is
+ * left exactly as stored instead of showing replacement glyphs.
+ */
+internal fun String.decodePercentEscapes(): String {
+    if (indexOf('%') < 0) return this
+    val bytes = ArrayList<Byte>(length)
+    var index = 0
+    while (index < length) {
+        val char = this[index]
+        if (char == '%' && index + 2 < length) {
+            val high = this[index + 1].digitToIntOrNull(16)
+            val low = this[index + 2].digitToIntOrNull(16)
+            if (high != null && low != null) {
+                bytes.add(((high shl 4) or low).toByte())
+                index += 3
+                continue
+            }
+        }
+        bytes.addAll(char.toString().toByteArray(Charsets.UTF_8).asList())
+        index++
+    }
+    return String(bytes.toByteArray(), Charsets.UTF_8)
+        .takeUnless { it.contains('\uFFFD') }
+        ?: this
 }
 
 data class Playlist(
@@ -74,4 +103,11 @@ data class Playlist(
         get() = items
             .maxByOrNull { it.lastPlayedAt ?: Long.MIN_VALUE }
             ?.takeIf { it.lastPlayedAt != null }
+
+    /**
+     * Whether this list owns its `position` column. Linked M3U playlists are excluded: refreshing one
+     * deletes and re-inserts every row, so a stored order would not survive it.
+     */
+    val isOrderEditable: Boolean
+        get() = type == PlaylistType.LOCAL || type == PlaylistType.NETWORK
 }

@@ -25,8 +25,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -114,8 +114,9 @@ internal fun PlaylistDetailScreenContent(
         ?.toUri()
         ?: videoUris.firstOrNull()
     val isReordering = state.isReordering &&
-        playlist?.type == PlaylistType.LOCAL &&
+        playlist?.isOrderEditable == true &&
         !isTv
+    var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
     val contentFocusRequester = rememberTvListFocusRequester()
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -236,6 +237,37 @@ internal fun PlaylistDetailScreenContent(
                                     }
                                 }
                             }
+                            if (playlist != null && playlist.isOrderEditable && playlist.items.size > 1) {
+                                val hasDuration = playlist.items.hasSortableDuration()
+                                Box {
+                                    IconButton(
+                                        onClick = { sortMenuExpanded = true },
+                                        enabled = !state.updateActionState.isRunning,
+                                        modifier = Modifier.tvFocusRing(),
+                                    ) {
+                                        Icon(
+                                            imageVector = NextIcons.Sort,
+                                            contentDescription = stringResource(R.string.sort_playlist),
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = sortMenuExpanded,
+                                        onDismissRequest = { sortMenuExpanded = false },
+                                    ) {
+                                        PlaylistSort.entries
+                                            .filter { it.showsFor(hasDuration) }
+                                            .forEach { sort ->
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(sort.labelRes)) },
+                                                    onClick = {
+                                                        sortMenuExpanded = false
+                                                        onAction(PlaylistDetailUiAction.SortBy(sort))
+                                                    },
+                                                )
+                                            }
+                                    }
+                                }
+                            }
                             IconButton(
                                 onClick = {
                                     onAction(PlaylistDetailUiAction.OnSearchClick)
@@ -248,7 +280,7 @@ internal fun PlaylistDetailScreenContent(
                                     contentDescription = stringResource(R.string.search),
                                 )
                             }
-                            if (!isTv && playlist?.type == PlaylistType.LOCAL) {
+                            if (!isTv && playlist?.isOrderEditable == true) {
                                 IconButton(
                                     onClick = {
                                         onAction(PlaylistDetailUiAction.OnReorderClick)
@@ -270,22 +302,34 @@ internal fun PlaylistDetailScreenContent(
         },
         floatingActionButton = {
             if (!state.isSearching && !isReordering && playbackStartUri != null) {
-                FloatingActionButton(
+                ExtendedFloatingActionButton(
                     onClick = {
                         onAction(
                             PlaylistDetailUiAction.OnPlay(playbackStartUri),
+                        )
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = NextIcons.Play,
+                            contentDescription = stringResource(R.string.play),
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = stringResource(
+                                if (playlist?.lastPlayedItem != null) {
+                                    R.string.continue_playback
+                                } else {
+                                    R.string.play_all
+                                },
+                            ),
                         )
                     },
                     modifier = Modifier
                         .tvFocusRing(shape = MaterialTheme.shapes.large)
                         .focusProperties { if (isTv) up = contentFocusRequester },
                     shape = MaterialTheme.shapes.large,
-                ) {
-                    Icon(
-                        imageVector = NextIcons.Play,
-                        contentDescription = stringResource(R.string.play),
-                    )
-                }
+                )
             }
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainer,

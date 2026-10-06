@@ -45,6 +45,7 @@ import dev.anilbeesetti.nextplayer.feature.player.utils.PlayerApi
 import dev.anilbeesetti.nextplayer.feature.player.utils.PlaylistPlaybackContract
 import dev.anilbeesetti.nextplayer.feature.player.utils.toMediaQueue
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -63,6 +64,21 @@ internal fun shouldResumeExistingPlayback(
     hasNextMediaItem: Boolean,
 ): Boolean = returningFromBackground ||
     (isRequestedUriCurrent && !hasExplicitPlaylist && hasNextMediaItem)
+
+/**
+ * Reaching another item is progress the playlist page cannot see on its own, so the player records
+ * it. Repeat of the same item is not progress, and a queue built for a single video has no playlist
+ * to report to.
+ */
+internal fun playlistItemToMarkPlayed(
+    playlistId: Long?,
+    mediaItemUri: String?,
+    transitionReason: Int,
+): Pair<Long, String>? {
+    if (playlistId == null || mediaItemUri == null) return null
+    if (transitionReason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) return null
+    return playlistId to mediaItemUri
+}
 
 @SuppressLint("UnsafeOptInUsageError")
 class PlayerActivity : ComponentActivity() {
@@ -83,7 +99,9 @@ class PlayerActivity : ComponentActivity() {
 
     private val playbackStateListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            intent.data = mediaItem?.localConfiguration?.uri
+            val uri = mediaItem?.localConfiguration?.uri
+            intent.data = uri
+            markPlaylistItemPlayed(mediaItemUri = uri?.toString(), transitionReason = reason)
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -160,6 +178,26 @@ class PlayerActivity : ComponentActivity() {
             lifecycleScope.launch { mediaController?.tryDecoderFallback() }
         },
     )
+
+    private fun markPlaylistItemPlayed(
+        mediaItemUri: String?,
+        transitionReason: Int,
+    ) {
+        val target = playlistItemToMarkPlayed(
+            playlistId = intent.playlistIdOrNull(),
+            mediaItemUri = mediaItemUri,
+            transitionReason = transitionReason,
+        ) ?: return
+        lifecycleScope.launch {
+            try {
+                playlistRepository.markVideoPlayed(target.first, target.second)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                // The playlist can disappear while a video is still playing.
+            }
+        }
+    }
 
     private suspend fun currentMediaDirectory(): Uri? {
         val uri = mediaController?.currentMediaItem?.localConfiguration?.uri ?: return null

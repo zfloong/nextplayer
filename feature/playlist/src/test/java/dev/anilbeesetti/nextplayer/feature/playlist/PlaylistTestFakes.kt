@@ -91,7 +91,16 @@ internal class FakePlaylistRepository : PlaylistRepository {
 
     override suspend fun removeVideo(playlistId: Long, videoUri: String) = Unit
 
-    override suspend fun replaceOrder(playlistId: Long, orderedUris: List<String>) = Unit
+    val orderReplacements = mutableListOf<List<String>>()
+    var insertionOrderRestorations = 0
+
+    override suspend fun replaceOrder(playlistId: Long, orderedUris: List<String>) {
+        orderReplacements += orderedUris
+    }
+
+    override suspend fun restoreInsertionOrder(playlistId: Long) {
+        insertionOrderRestorations++
+    }
 
     override suspend fun markVideoPlayed(playlistId: Long, videoUri: String) = Unit
 

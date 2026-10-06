@@ -23,6 +23,7 @@ import dev.anilbeesetti.nextplayer.core.model.Playlist
 import dev.anilbeesetti.nextplayer.core.model.PlaylistItem
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
 import dev.anilbeesetti.nextplayer.core.model.Video
+import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.base.ActionState
 import dev.anilbeesetti.nextplayer.core.ui.base.DataState
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
@@ -39,7 +40,7 @@ class PlaylistDetailScreenTest {
     fun tvFabUpReturnsToTheVideoInsteadOfSearch() {
         assumeTrue(ApplicationProvider.getApplicationContext<Context>().isTelevision)
         setContent(playlist(item("content://one", "One.mp4", "/Movies", 0)), isTv = true)
-        composeRule.onNodeWithContentDescription("Play").requestFocus()
+        composeRule.onNodeWithContentDescription(stringRes(R.string.play)).requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
         composeRule.onNodeWithText("One").assertIsFocused()
     }
@@ -55,7 +56,7 @@ class PlaylistDetailScreenTest {
             isTv = true,
         )
         composeRule.onNodeWithText("Two").requestFocus()
-        composeRule.onNodeWithContentDescription("Play").requestFocus()
+        composeRule.onNodeWithContentDescription(stringRes(R.string.play)).requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
         composeRule.onNodeWithText("Two").assertIsFocused()
     }
@@ -72,8 +73,9 @@ class PlaylistDetailScreenTest {
 
         composeRule.onNodeWithText("Renamed Two").assertIsDisplayed()
         composeRule.onNodeWithText("/Moved").assertIsDisplayed()
-        composeRule.onAllNodesWithContentDescription("Play all").assertCountEquals(0)
-        composeRule.onNodeWithContentDescription("Play").performClick()
+        composeRule.onNodeWithText(stringRes(R.string.play_all), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.play_all)).assertCountEquals(0)
+        composeRule.onNodeWithContentDescription(stringRes(R.string.play)).performClick()
 
         assertEquals(
             PlaylistDetailUiAction.OnPlay(Uri.parse("content://two")),
@@ -90,7 +92,9 @@ class PlaylistDetailScreenTest {
         )
 
         setContent(playlist, onAction = actions::add)
-        composeRule.onNodeWithContentDescription("Play").performClick()
+        composeRule.onNodeWithText(stringRes(R.string.continue_playback), useUnmergedTree = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(stringRes(R.string.play)).performClick()
 
         assertEquals(
             PlaylistDetailUiAction.OnPlay(Uri.parse("content://two")),
@@ -110,6 +114,18 @@ class PlaylistDetailScreenTest {
     }
 
     @Test
+    fun networkSnapshotRowShowsReadableNamesInsteadOfPercentEscapes() {
+        val encodedUri = "smb://192.0.2.1/Media/%E6%97%A5%E6%9C%AC%E8%AA%9E.mkv?cid=3"
+        setContent(
+            playlist = playlist(networkItem(encodedUri, 0), type = PlaylistType.NETWORK),
+        )
+
+        composeRule.onNodeWithText("日本語").assertIsDisplayed()
+        composeRule.onNodeWithText("smb://192.0.2.1/Media/日本語.mkv?cid=3").assertIsDisplayed()
+        composeRule.onAllNodesWithText("%", substring = true).assertCountEquals(0)
+    }
+
+    @Test
     fun removeMenuRequestsConfirmation() {
         val actions = mutableListOf<PlaylistDetailUiAction>()
         val item = item("content://one", "One.mp4", "/Movies", 0)
@@ -118,8 +134,8 @@ class PlaylistDetailScreenTest {
             onAction = actions::add,
         )
 
-        composeRule.onNodeWithContentDescription("Playlist actions").performClick()
-        composeRule.onNodeWithText("Remove").performClick()
+        composeRule.onNodeWithContentDescription(stringRes(R.string.playlist_actions)).performClick()
+        composeRule.onNodeWithText(stringRes(R.string.remove)).performClick()
 
         assertEquals(
             listOf(PlaylistDetailUiAction.ShowRemoveDialogFor(item)),
@@ -137,8 +153,9 @@ class PlaylistDetailScreenTest {
             onAction = actions::add,
         )
 
-        composeRule.onNodeWithText("Remove “One” from this playlist?").assertIsDisplayed()
-        composeRule.onNodeWithText("Remove").performClick()
+        composeRule.onNodeWithText(stringRes(R.string.remove_video_confirmation, "One"))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(stringRes(R.string.remove)).performClick()
 
         assertEquals(
             listOf(PlaylistDetailUiAction.RemoveVideo("content://one")),
@@ -160,7 +177,7 @@ class PlaylistDetailScreenTest {
             onAction = actions::add,
         )
 
-        composeRule.onAllNodesWithContentDescription("Play").assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.play)).assertCountEquals(0)
         composeRule.onAllNodesWithText("One").assertCountEquals(0)
         composeRule.onNodeWithText("Two").assertIsDisplayed()
         composeRule.onNodeWithText("Two").performClick()
@@ -180,7 +197,7 @@ class PlaylistDetailScreenTest {
             onAction = actions::add,
         )
 
-        composeRule.onNodeWithContentDescription("Close search").performClick()
+        composeRule.onNodeWithContentDescription(stringRes(R.string.close_search)).performClick()
 
         assertEquals(
             listOf(PlaylistDetailUiAction.OnCloseSearchClick),
@@ -203,14 +220,14 @@ class PlaylistDetailScreenTest {
             onAction = actions::add,
         )
 
-        composeRule.onAllNodesWithContentDescription("Play").assertCountEquals(0)
-        composeRule.onNodeWithContentDescription("Finish reordering").assertIsDisplayed()
-        composeRule.onAllNodesWithContentDescription("Reorder playlist item").assertCountEquals(2)
-        composeRule.onAllNodesWithContentDescription("Playlist actions").assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.play)).assertCountEquals(0)
+        composeRule.onNodeWithContentDescription(stringRes(R.string.finish_reordering)).assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.reorder_playlist_item)).assertCountEquals(2)
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.playlist_actions)).assertCountEquals(0)
         composeRule.onNodeWithText("One").performClick()
         assertEquals(emptyList<PlaylistDetailUiAction>(), actions)
 
-        composeRule.onNodeWithContentDescription("Finish reordering").performClick()
+        composeRule.onNodeWithContentDescription(stringRes(R.string.finish_reordering)).performClick()
         assertEquals(
             listOf(PlaylistDetailUiAction.OnFinishReorderingClick),
             actions,
@@ -228,7 +245,7 @@ class PlaylistDetailScreenTest {
             onAction = actions::add,
         )
 
-        composeRule.onNodeWithContentDescription("Reorder playlist").performClick()
+        composeRule.onNodeWithContentDescription(stringRes(R.string.reorder_playlist)).performClick()
 
         assertEquals(
             listOf(PlaylistDetailUiAction.OnReorderClick),
@@ -249,8 +266,8 @@ class PlaylistDetailScreenTest {
             onAction = actions::add,
         )
 
-        composeRule.onAllNodesWithContentDescription("Reorder playlist").assertCountEquals(0)
-        composeRule.onAllNodesWithContentDescription("Play").assertCountEquals(1)
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.reorder_playlist)).assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.play)).assertCountEquals(1)
         composeRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
         composeRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
 
@@ -260,6 +277,54 @@ class PlaylistDetailScreenTest {
             actions.single(),
         )
     }
+
+    @Test
+    fun sortMenuEmitsTheChosenSort() {
+        val actions = mutableListOf<PlaylistDetailUiAction>()
+        setContent(
+            playlist = playlist(
+                item("content://one", "One.mp4", "/Movies", 0),
+                item("content://two", "Two.mp4", "/Movies", 1),
+            ),
+            onAction = actions::add,
+        )
+
+        composeRule.onNodeWithContentDescription(stringRes(R.string.sort_playlist)).performClick()
+        composeRule.onNodeWithText(stringRes(R.string.sort_duration_ascending)).performClick()
+
+        assertEquals(
+            listOf(PlaylistDetailUiAction.SortBy(PlaylistSort.DURATION_ASCENDING)),
+            actions,
+        )
+    }
+
+    @Test
+    fun sortMenuHidesTheDurationRowsWhenNoVideoKnowsItsLength() {
+        setContent(
+            playlist = playlist(
+                item("content://one", "One.mp4", "/Movies", 0, videoDuration = 0),
+                item("content://two", "Two.mp4", "/Movies", 1, videoDuration = 0),
+            ),
+        )
+
+        composeRule.onNodeWithContentDescription(stringRes(R.string.sort_playlist)).performClick()
+
+        composeRule.onAllNodesWithText(stringRes(R.string.sort_duration_ascending)).assertCountEquals(0)
+        composeRule.onAllNodesWithText(stringRes(R.string.sort_duration_descending)).assertCountEquals(0)
+        composeRule.onNodeWithText(stringRes(R.string.sort_name_ascending)).assertIsDisplayed()
+        composeRule.onNodeWithText(stringRes(R.string.sort_restore_added_order)).assertIsDisplayed()
+    }
+
+    @Test
+    fun sortButtonIsAbsentFromAListTooShortToOrder() {
+        setContent(playlist = playlist(item("content://one", "One.mp4", "/Movies", 0)))
+
+        composeRule.onAllNodesWithContentDescription(stringRes(R.string.sort_playlist)).assertCountEquals(0)
+    }
+
+    /** The device locale decides the label text, so assert against the resource, not a literal. */
+    private fun stringRes(resId: Int, vararg args: Any): String =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(resId, *args)
 
     private fun setContent(
         playlist: Playlist,
@@ -291,13 +356,24 @@ class PlaylistDetailScreenTest {
     }
 }
 
-private fun playlist(vararg items: PlaylistItem) = Playlist(
+private fun playlist(vararg items: PlaylistItem, type: PlaylistType = PlaylistType.LOCAL) = Playlist(
     id = 7,
     name = "Movies",
-    type = PlaylistType.LOCAL,
+    type = type,
     source = null,
     items = items.toList(),
     lastRefreshedAt = null,
+)
+
+/** A network snapshot row: no media-store record and no stored title, only the encoded URI. */
+private fun networkItem(uri: String, position: Int) = PlaylistItem(
+    position = position,
+    uri = uri,
+    title = null,
+    tvgLogo = null,
+    duration = -1,
+    groupTitle = null,
+    video = null,
 )
 
 private fun item(
@@ -306,6 +382,7 @@ private fun item(
     parentPath: String,
     position: Int,
     lastPlayedAt: Long? = null,
+    videoDuration: Long = 1_000,
 ) = PlaylistItem(
     position = position,
     uri = uri,
@@ -318,7 +395,7 @@ private fun item(
         id = position.toLong(),
         path = "$parentPath/$name",
         parentPath = parentPath,
-        duration = 1_000,
+        duration = videoDuration,
         uriString = uri,
         nameWithExtension = name,
         width = 1920,

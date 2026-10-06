@@ -79,6 +79,7 @@ import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SmartButton
+import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Straighten
@@ -188,4 +189,5 @@ object NextIcons {
     val Fingerprint = Icons.Rounded.Fingerprint
     val DragHandle = Icons.Rounded.DragHandle
     val Reorder = Icons.Rounded.SwapVert
+    val Sort = Icons.Rounded.Sort
 }

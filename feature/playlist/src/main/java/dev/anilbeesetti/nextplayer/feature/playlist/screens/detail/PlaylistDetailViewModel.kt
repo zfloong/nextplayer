@@ -66,7 +66,7 @@ class PlaylistDetailViewModel(
                     currentState.copy(
                         playlistDataState = DataState.Success(playlist),
                         isReordering = currentState.isReordering &&
-                            playlist?.type == PlaylistType.LOCAL &&
+                            playlist?.isOrderEditable == true &&
                             playlist.items.size > 1,
                     )
                 }
@@ -87,7 +87,7 @@ class PlaylistDetailViewModel(
                 it.copy(isSearching = false, searchQuery = "")
             }
             is PlaylistDetailUiAction.OnReorderClick -> {
-                if (currentPlaylist()?.type == PlaylistType.LOCAL) {
+                if (currentPlaylist()?.isOrderEditable == true) {
                     stateInternal.update {
                         it.copy(isReordering = true, isSearching = false, searchQuery = "")
                     }
@@ -98,6 +98,7 @@ class PlaylistDetailViewModel(
             }
             is PlaylistDetailUiAction.OnPlay -> play(action.startUri)
             is PlaylistDetailUiAction.Refresh -> refresh()
+            is PlaylistDetailUiAction.SortBy -> sortBy(action.sort)
             is PlaylistDetailUiAction.ShowRemoveDialogFor -> stateInternal.update {
                 it.copy(showRemoveDialogFor = action.item)
             }
@@ -112,6 +113,20 @@ class PlaylistDetailViewModel(
     private fun play(startUri: Uri) {
         markVideoPlayed(startUri.toString())
         output.playPlaylist(input.playlistId, startUri)
+    }
+
+    private fun sortBy(sort: PlaylistSort) {
+        val playlist = currentPlaylist() ?: return
+        if (!playlist.isOrderEditable) return
+        if (sort == PlaylistSort.INSERTION_ORDER) {
+            // Only the rows know how they were added: the list on screen is already read back by position.
+            updatePlaylist(block = { playlistRepository.restoreInsertionOrder(input.playlistId) })
+            return
+        }
+        val orderedUris = playlistUrisForSort(playlist.items, sort)
+        updatePlaylist(
+            block = { playlistRepository.replaceOrder(input.playlistId, orderedUris) },
+        )
     }
 
     private fun refresh() {
@@ -265,6 +280,7 @@ sealed interface PlaylistDetailUiAction {
     data object OnFinishReorderingClick : PlaylistDetailUiAction
     data class OnPlay(val startUri: Uri) : PlaylistDetailUiAction
     data object Refresh : PlaylistDetailUiAction
+    data class SortBy(val sort: PlaylistSort) : PlaylistDetailUiAction
     data class ShowRemoveDialogFor(val item: PlaylistItem) : PlaylistDetailUiAction
     data object DismissRemoveDialog : PlaylistDetailUiAction
     data class RemoveVideo(val videoUri: String) : PlaylistDetailUiAction

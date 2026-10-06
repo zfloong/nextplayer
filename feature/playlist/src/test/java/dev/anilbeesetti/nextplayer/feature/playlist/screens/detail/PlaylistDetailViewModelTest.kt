@@ -15,6 +15,7 @@ import dev.anilbeesetti.nextplayer.core.model.PlaylistItemRecord
 import dev.anilbeesetti.nextplayer.core.model.PlaylistRecord
 import dev.anilbeesetti.nextplayer.core.model.PlaylistSnapshotDiff
 import dev.anilbeesetti.nextplayer.core.model.PlaylistType
+import dev.anilbeesetti.nextplayer.core.model.Video
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.base.DataState
 import dev.anilbeesetti.nextplayer.feature.playlist.FakeNetworkClient
@@ -206,6 +207,98 @@ class PlaylistDetailViewModelTest {
         assertEquals(listOf("Snapshot connection no longer exists"), systemService.toasts)
     }
 
+    @Test
+    fun nameSortRewritesTheStoredOrderOfALocalPlaylist() = runTest(dispatcher) {
+        val titlesByUri = mapOf(
+            "file:///video/ep10" to "Episode 10",
+            "file:///video/ep2" to "Episode 2",
+            "file:///video/ep1" to "Episode 1",
+        )
+        mediaRepository.videos += titlesByUri.keys.map(::libraryVideo)
+        repository.playlist.value = PlaylistRecord(
+            id = 7,
+            name = "Local list",
+            type = PlaylistType.LOCAL,
+            source = null,
+            items = titlesByUri.entries.mapIndexed { position, entry ->
+                PlaylistItemRecord(position = position, uri = entry.key, title = entry.value)
+            },
+            lastRefreshedAt = null,
+        )
+        val viewModel = viewModel()
+        runCurrent()
+
+        viewModel.onAction(PlaylistDetailUiAction.SortBy(PlaylistSort.NAME_ASCENDING))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("file:///video/ep1", "file:///video/ep2", "file:///video/ep10"),
+            repository.orderReplacements.single(),
+        )
+    }
+
+    @Test
+    fun networkSnapshotSortsIntoTheStoredOrderToo() = runTest(dispatcher) {
+        repository.playlist.value = snapshotRecord("smb://nas/Media/Series?cid=3&subdirs=false")
+        val viewModel = viewModel()
+        runCurrent()
+
+        viewModel.onAction(PlaylistDetailUiAction.SortBy(PlaylistSort.NAME_DESCENDING))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                "smb://nas/Media/Series/Second.mp4?cid=3",
+                "smb://nas/Media/Series/Deleted.mp4?cid=3",
+            ),
+            repository.orderReplacements.single(),
+        )
+    }
+
+    @Test
+    fun restoreAddedOrderAsksTheRepositoryThatStillKnowsIt() = runTest(dispatcher) {
+        repository.playlist.value = snapshotRecord("smb://nas/Media/Series?cid=3&subdirs=false")
+        val viewModel = viewModel()
+        runCurrent()
+
+        viewModel.onAction(PlaylistDetailUiAction.SortBy(PlaylistSort.INSERTION_ORDER))
+        advanceUntilIdle()
+
+        assertEquals(1, repository.insertionOrderRestorations)
+        assertTrue(repository.orderReplacements.isEmpty())
+    }
+
+    @Test
+    fun linkedM3UPlaylistIgnoresEverySort() = runTest(dispatcher) {
+        repository.playlist.value = linkedRecord("https://media.example/list.m3u").copy(
+            items = listOf(
+                PlaylistItemRecord(position = 0, uri = "https://media.example/z", title = "Z"),
+                PlaylistItemRecord(position = 1, uri = "https://media.example/a", title = "A"),
+            ),
+        )
+        val viewModel = viewModel()
+        runCurrent()
+
+        viewModel.onAction(PlaylistDetailUiAction.SortBy(PlaylistSort.NAME_ASCENDING))
+        advanceUntilIdle()
+        viewModel.onAction(PlaylistDetailUiAction.SortBy(PlaylistSort.INSERTION_ORDER))
+        advanceUntilIdle()
+
+        assertTrue(repository.orderReplacements.isEmpty())
+        assertEquals(0, repository.insertionOrderRestorations)
+    }
+
+    private fun libraryVideo(uri: String) = Video(
+        id = uri.hashCode().toLong(),
+        path = uri.removePrefix("file:///"),
+        duration = 1_000,
+        uriString = uri,
+        nameWithExtension = uri.substringAfterLast('/'),
+        width = 1920,
+        height = 1080,
+        size = 1_000,
+    )
+
     private fun viewModel(
         connection: NetworkConnection? = snapshotConnection(),
         client: FakeNetworkClient = FakeNetworkClient(emptyMap()),
@@ -242,6 +335,11 @@ class PlaylistDetailViewModelTest {
                 position = 0,
                 uri = "smb://nas/Media/Series/Deleted.mp4?cid=3",
                 title = "Deleted",
+            ),
+            PlaylistItemRecord(
+                position = 1,
+                uri = "smb://nas/Media/Series/Second.mp4?cid=3",
+                title = "Second",
             ),
         ),
         lastRefreshedAt = 123,

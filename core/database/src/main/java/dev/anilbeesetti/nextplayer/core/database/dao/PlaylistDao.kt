@@ -42,8 +42,16 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlist_item WHERE playlist_id = :playlistId ORDER BY position")
     suspend fun getItems(playlistId: Long): List<PlaylistItemEntity>
 
+    /** The order rows were first added, which `position` no longer remembers once the list is sorted. */
+    @Query("SELECT uri FROM playlist_item WHERE playlist_id = :playlistId ORDER BY rowid")
+    suspend fun getInsertionOrderUris(playlistId: Long): List<String>
+
     @Query("SELECT * FROM playlist_item")
     suspend fun getAllItems(): List<PlaylistItemEntity>
+
+    /** Above every existing row, so a playlist with gaps in its positions cannot collide. */
+    @Query("SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_item WHERE playlist_id = :playlistId")
+    suspend fun nextItemPosition(playlistId: Long): Int
 
     @Insert
     suspend fun insertPlaylist(playlist: PlaylistEntity): Long
@@ -184,21 +192,23 @@ interface PlaylistDao {
         }
     }
 
+    /** Sort order lives in `position`, which snapshots and local lists both own; M3U rows are rewritten by refresh. */
+    suspend fun requireReorderablePlaylist(playlistId: Long) {
+        require(getPlaylistEntity(playlistId)?.type in REORDERABLE_PLAYLIST_TYPES) {
+            "Only local and network playlists can be reordered"
+        }
+    }
+
+    /** Appends below the highest position; rows already in the playlist are ignored. */
     @Transaction
     suspend fun addItems(playlistId: Long, uris: List<String>): Int {
-        val currentItems = getItems(playlistId)
-        val knownUris = currentItems.mapTo(mutableSetOf()) { it.uri }
-        var nextPosition = currentItems.size
-        val newItems = uris.mapNotNull { uri ->
-            if (knownUris.add(uri)) {
-                PlaylistItemEntity(
-                    playlistId = playlistId,
-                    uri = uri,
-                    position = nextPosition++,
-                )
-            } else {
-                null
-            }
+        var nextPosition = nextItemPosition(playlistId)
+        val newItems = uris.distinct().map { uri ->
+            PlaylistItemEntity(
+                playlistId = playlistId,
+                uri = uri,
+                position = nextPosition++,
+            )
         }
         return insertItems(newItems).count { it != -1L }
     }
@@ -237,6 +247,11 @@ interface PlaylistDao {
     }
 
     @Transaction
+    suspend fun restoreInsertionOrder(playlistId: Long) {
+        replaceOrder(playlistId, getInsertionOrderUris(playlistId))
+    }
+
+    @Transaction
     suspend fun removeMissingLocalItems(existingUris: Set<String>) {
         val localPlaylistIds = getLocalPlaylistIds().toSet()
         val missingItems = getAllItems().filter {
@@ -265,5 +280,6 @@ interface PlaylistDao {
         private const val LOCAL_PLAYLIST_TYPE = "LOCAL"
         private const val SNAPSHOT_PLAYLIST_TYPE = "NETWORK"
         private val LINKED_PLAYLIST_TYPES = setOf("M3U_URL", "M3U_FILE")
+        private val REORDERABLE_PLAYLIST_TYPES = setOf(LOCAL_PLAYLIST_TYPE, SNAPSHOT_PLAYLIST_TYPE)
     }
 }
