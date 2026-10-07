@@ -9,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -24,6 +26,7 @@ import androidx.media3.common.util.UnstableApi
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
+import dev.anilbeesetti.nextplayer.feature.player.state.ItemDragState
 import dev.anilbeesetti.nextplayer.feature.player.state.PlayerOrientationEffect
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberBrightnessState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberControlBarHeights
@@ -117,6 +120,9 @@ internal fun MediaPlayerContent(
         onEvent = { onAction(PlayerAction.OnVideoZoomEvent(it)) },
     )
     val brightnessState = if (!isPreview) rememberBrightnessState() else null
+    // The portrait swipe moves the real surface, so the panel it uncovers is drawn behind it, in the content frame.
+    val dragCoroutineScope = rememberCoroutineScope()
+    val itemDragState = remember(dragCoroutineScope) { ItemDragState(dragCoroutineScope) }
     val volumeAndBrightnessGestureState = if (volumeState != null && brightnessState != null) {
         rememberVolumeAndBrightnessGestureState(
             volumeState = volumeState,
@@ -161,6 +167,7 @@ internal fun MediaPlayerContent(
             PlayerContentFrame(
                 player = player,
                 pictureInPictureState = pictureInPictureState,
+                itemDragState = itemDragState,
                 videoTransformState = videoTransformState,
                 subtitleConfiguration = SubtitleConfiguration(
                     useSystemCaptionStyle = playerPreferences.useSystemCaptionStyle,
@@ -182,6 +189,7 @@ internal fun MediaPlayerContent(
                     volumeAndBrightnessGestureState = volumeAndBrightnessGestureState,
                     isPortrait = isPortrait,
                     controlBarHeights = controlBarHeights,
+                    itemDragState = itemDragState,
                     onSwipeToPreviousItem = { player.seekToPreviousMediaItem() },
                     onSwipeToNextItem = { player.seekToNextMediaItem() },
                 )

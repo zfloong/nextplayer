@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,10 +51,13 @@ fun ControlsMiddleView(
             Icon(
                 painter = painterResource(coreUiR.drawable.ic_play),
                 contentDescription = null,
+                // Fixed white: the indicator sits on the video, not on the app's surface colour, so following the
+                // theme can render it near-black on a light theme and make it disappear.
+                tint = Color.White,
                 modifier = modifier
                     .testTag(PORTRAIT_PAUSE_INDICATOR_TEST_TAG)
                     .size(96.dp)
-                    .alpha(0.4f),
+                    .alpha(0.6f),
             )
         }
         return

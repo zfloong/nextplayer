@@ -66,6 +66,14 @@ class VideoTransformState(
     var rotationDegrees: Int by mutableIntStateOf(0)
         private set
 
+    /**
+     * The picture sits exactly where the surface draws it. A portrait swipe adds its own translation to the same
+     * graphics layer, and a half-turned canvas would send that translation the wrong way, so only an untransformed
+     * picture gets dragged.
+     */
+    val isUnTransformed: Boolean
+        get() = zoom == 1f && offset == Offset.Zero && rotationDegrees == 0
+
     fun rotateCanvas() {
         rotationDegrees = if (rotationDegrees == 0) HALF_TURN_DEGREES else 0
     }

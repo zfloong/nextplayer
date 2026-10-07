@@ -33,7 +33,6 @@ class HandleSingleTapTest {
         val player = TestPlayer(playing = true)
         try {
             val visibility = controlsVisibilityState(player)
-            visibility.hideControls()
 
             handleSingleTap(
                 isPortrait = true,
@@ -117,14 +116,15 @@ class HandleSingleTapTest {
         }
     }
 
-    /** With no bars on screen there is nothing to fold away, so any tap is a pause. */
+    /** The first tap on the strip has to pause; making the user tap twice for one pause reads as a dead zone. */
     @Test
-    fun portraitTapWithControlsHiddenPausesAnywhere() = runTest {
+    fun portraitTapWhileHiddenPausesAndShowsControls() = runTest {
         val player = TestPlayer(playing = true)
         try {
             val visibility = controlsVisibilityState(player)
             visibility.hideControls()
 
+            // Over the bottom bar's own position: folded controls are what he reached for, so no pause.
             handleSingleTap(
                 isPortrait = true,
                 tapY = 900f,
@@ -133,9 +133,31 @@ class HandleSingleTapTest {
                 player = player,
                 controlsVisibilityState = visibility,
             )
-
-            assertEquals(false, player.isPlaying)
             assertEquals(true, visibility.controlsVisible)
+            assertEquals(true, player.isPlaying)
+
+            visibility.hideControls()
+            handleSingleTap(
+                isPortrait = true,
+                tapY = 500f,
+                screenHeight = SCREEN_HEIGHT,
+                controlBarHeights = controlBarHeights(),
+                player = player,
+                controlsVisibilityState = visibility,
+            )
+            assertEquals(true, visibility.controlsVisible)
+            assertEquals(false, player.isPlaying)
+
+            // With the controls already up, the same strip tap still pauses - here it resumes.
+            handleSingleTap(
+                isPortrait = true,
+                tapY = 500f,
+                screenHeight = SCREEN_HEIGHT,
+                controlBarHeights = controlBarHeights(),
+                player = player,
+                controlsVisibilityState = visibility,
+            )
+            assertEquals(true, player.isPlaying)
         } finally {
             player.release()
         }
@@ -176,23 +198,34 @@ class HandleSingleTapTest {
     }
 
     @Test
-    fun tapBoundsUseTheBarsInnerEdges() {
+    fun tapBoundsAreTheInnerThirds() {
         val heights = controlBarHeights(top = 200, bottom = 300)
 
-        // The video strip is [200, 700): the last pixel above the seekbar row still pauses.
-        assertEquals(false, isControlBarTapRegion(tapY = 200f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
-        assertEquals(false, isControlBarTapRegion(tapY = 699f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
-        assertEquals(true, isControlBarTapRegion(tapY = 700f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
-        assertEquals(true, isControlBarTapRegion(tapY = 199f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
+        // A third of the 1000px screen belongs to each edge: [0, 333) and (667, 1000] fold the controls away,
+        // and only the strip between them pauses.
+        assertEquals(true, isControlBarTapRegion(tapY = 333f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
+        assertEquals(false, isControlBarTapRegion(tapY = 334f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
+        assertEquals(false, isControlBarTapRegion(tapY = 666f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
+        assertEquals(true, isControlBarTapRegion(tapY = 667f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
     }
 
-    /** Before the first layout pass nothing is measured, so the whole screen stays a pause region. */
+    /** A bar taller than its third keeps its whole extent, so a control never sits behind a pause tap. */
     @Test
-    fun unmeasuredBarsLeaveTheWholeScreenTappable() {
+    fun measuredBarsAreAFloorNotACeiling() {
+        val tallBottom = controlBarHeights(top = 200, bottom = 500)
+
+        assertEquals(true, isControlBarTapRegion(tapY = 550f, screenHeight = SCREEN_HEIGHT, controlBarHeights = tallBottom))
+        assertEquals(false, isControlBarTapRegion(tapY = 400f, screenHeight = SCREEN_HEIGHT, controlBarHeights = tallBottom))
+    }
+
+    /** Before the first layout pass nothing is measured, and the thirds still hold. */
+    @Test
+    fun unmeasuredBarsStillZoneInThirds() {
         val heights = controlBarHeights(top = 0, bottom = 0)
 
-        assertEquals(false, isControlBarTapRegion(tapY = 0f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
-        assertEquals(false, isControlBarTapRegion(tapY = 999f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
+        assertEquals(true, isControlBarTapRegion(tapY = 0f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
+        assertEquals(false, isControlBarTapRegion(tapY = 500f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
+        assertEquals(true, isControlBarTapRegion(tapY = 999f, screenHeight = SCREEN_HEIGHT, controlBarHeights = heights))
     }
 
     private fun TestScope.controlsVisibilityState(player: Player): ControlsVisibilityState =
