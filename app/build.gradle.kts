@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -30,6 +31,33 @@ android {
         targetCompatibility = JavaVersion.toVersion(libs.versions.android.jvm.get().toInt())
     }
 
+    // Declared before buildTypes because Gradle evaluates these blocks in order, and a variant reads the
+    // signing config by name as it is created. The key lives outside the repository so it can never be
+    // committed, which is why this variant has to be the one that ships: an APK signed with the debug key
+    // identifies its signer as every other debug build on earth, and installers read that as an untraceable
+    // developer. A machine without the property file simply gets an unsigned APK from this variant, and the
+    // upstream variants are untouched.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("${project.rootDir}/app/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        val selfSignedProperties = file("${System.getProperty("user.home")}/nextplayer-signing.properties")
+        if (selfSignedProperties.exists()) {
+            create("selfSigned") {
+                val properties = Properties().apply {
+                    selfSignedProperties.reader().use(::load)
+                }
+                storeFile = file(properties.getProperty("storeFile"))
+                storePassword = properties.getProperty("storePassword")
+                keyAlias = properties.getProperty("keyAlias")
+                keyPassword = properties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
@@ -45,20 +73,11 @@ android {
             applicationIdSuffix = ".debug"
         }
 
-        create("release-with-debug-signing") {
+        create("release-self-signed") {
             initWith(getByName("release"))
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("selfSigned")
             applicationIdSuffix = ".release"
             matchingFallbacks.add("release")
-        }
-    }
-
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file("${project.rootDir}/app/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
         }
     }
 
