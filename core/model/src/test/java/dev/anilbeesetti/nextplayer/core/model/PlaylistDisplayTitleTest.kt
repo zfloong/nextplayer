@@ -1,6 +1,7 @@
 package dev.anilbeesetti.nextplayer.core.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlaylistDisplayTitleTest {
@@ -46,6 +47,17 @@ class PlaylistDisplayTitleTest {
             "/Movies",
             item(uri = "content://media/external/video/9", video = video()).supportingText,
         )
+    }
+
+    /**
+     * The playback queue names its items with this, where the list above falls back to the raw URI: a MediaStore
+     * content URI ends in a row id, and a number is not a name to promise in a swipe panel.
+     */
+    @Test
+    fun uriNameIsANullWhereTheUriCarriesNoName() {
+        assertEquals("日本語", playlistUriDisplayName("smb://192.0.2.1/Media/%E6%97%A5%E6%9C%AC%E8%AA%9E.mkv?cid=3"))
+        assertEquals("A 1080", playlistUriDisplayName("smb://192.0.2.1/Media/A%201080.mkv?cid=3"))
+        assertNull(playlistUriDisplayName("content://media/external/video/9"))
     }
 
     private fun item(

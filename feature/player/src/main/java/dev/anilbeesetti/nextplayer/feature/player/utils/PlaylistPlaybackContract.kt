@@ -4,6 +4,7 @@ import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import dev.anilbeesetti.nextplayer.core.model.PlaylistRecord
+import dev.anilbeesetti.nextplayer.core.model.playlistUriDisplayName
 
 object PlaylistPlaybackContract {
     const val EXTRA_PLAYLIST_ID =
@@ -29,7 +30,11 @@ internal fun PlaylistRecord.toMediaQueue(
                 .setMediaId(item.uri)
                 .setMediaMetadata(
                     MediaMetadata.Builder()
-                        .setTitle(item.title)
+                        // Local and network rows store no title, and only the playing item used to get one, so
+                        // every other item in the queue came in unnamed.
+                        .setTitle(
+                            item.title?.takeIf(String::isNotBlank) ?: playlistUriDisplayName(item.uri),
+                        )
                         .setArtworkUri(
                             item.tvgLogo
                                 ?.takeIf(String::isNotBlank)

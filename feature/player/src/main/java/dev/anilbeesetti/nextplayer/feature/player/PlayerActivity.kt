@@ -28,6 +28,7 @@ import dev.anilbeesetti.nextplayer.core.common.extensions.getInitialDirectoryUri
 import dev.anilbeesetti.nextplayer.core.common.extensions.getMediaContentUri
 import dev.anilbeesetti.nextplayer.core.common.service.registerForSuspendActivityResult
 import dev.anilbeesetti.nextplayer.core.data.repository.PlaylistRepository
+import dev.anilbeesetti.nextplayer.core.model.playlistUriDisplayName
 import dev.anilbeesetti.nextplayer.core.ui.R as coreUiR
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import dev.anilbeesetti.nextplayer.feature.player.extensions.OpenDocumentAtInitialUri
@@ -327,9 +328,12 @@ class PlayerActivity : ComponentActivity() {
         }
 
         val mediaContentUri = getMediaContentUri(uri)
-        val playlist = playerApi.getPlaylist().takeIf { it.isNotEmpty() }
+        val restoredQueue = playerApi.getPlaylist().takeIf { it.isNotEmpty() }
+        val folderVideos =
+            if (restoredQueue == null) mediaContentUri?.let { viewModel.getPlaylistFromUri(it) } else null
+        val playlist = restoredQueue
             ?: mediaContentUri?.let { mediaUri ->
-                viewModel.getPlaylistFromUri(mediaUri)
+                folderVideos.orEmpty()
                     .map { it.uriString }
                     .toMutableList()
                     .apply {
@@ -343,17 +347,29 @@ class PlayerActivity : ComponentActivity() {
             it == (mediaContentUri ?: uri).toString()
         }.takeIf { it >= 0 } ?: 0
 
+        // Every item gets its name, not just the playing one: the portrait swipe shows what is coming next. A
+        // restored queue has no folder scan behind it, so a network item is named from the URI it carries.
+        val displayNames = folderVideos?.associate { it.uriString to it.displayName }.orEmpty()
+
         val mediaItems = playlist.mapIndexed { index, uri ->
             MediaItem.Builder().apply {
                 setUri(uri)
                 setMediaId(uri)
-                if (index == mediaItemIndexToPlay) {
-                    setMediaMetadata(
-                        MediaMetadata.Builder().apply {
-                            setTitle(playerApi.title)
+                setMediaMetadata(
+                    MediaMetadata.Builder().apply {
+                        setTitle(
+                            if (index == mediaItemIndexToPlay) {
+                                playerApi.title
+                            } else {
+                                displayNames[uri] ?: playlistUriDisplayName(uri)
+                            },
+                        )
+                        if (index == mediaItemIndexToPlay) {
                             setExtras(positionMs = playerApi.position?.toLong())
-                        }.build(),
-                    )
+                        }
+                    }.build(),
+                )
+                if (index == mediaItemIndexToPlay) {
                     val apiSubs = playerApi.getSubs().map { subtitle ->
                         uriToSubtitleConfiguration(
                             uri = subtitle.uri,

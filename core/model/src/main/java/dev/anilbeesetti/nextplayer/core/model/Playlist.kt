@@ -55,12 +55,23 @@ data class PlaylistItem(
     val displayTitle: String
         get() = title?.takeIf(String::isNotBlank)
             ?: video?.displayName
-            ?: uri.substringBefore('?').substringAfterLast('/').decodePercentEscapes().substringBeforeLast('.')
-                .ifBlank { uri }
+            ?: uri.nameSegment().ifBlank { uri }
 
     val supportingText: String
         get() = video?.parentPath?.takeIf(String::isNotBlank) ?: uri.decodePercentEscapes()
 }
+
+/**
+ * The name a URI carries by itself, for the rows that have no title of their own: a media queue built from
+ * network snapshot rows only has the encoded path to show. MediaStore content URIs end in a numeric row id,
+ * which is not a name, so this returns null rather than a number.
+ */
+fun playlistUriDisplayName(uri: String): String? =
+    uri.nameSegment().takeIf { it.isNotBlank() && !it.all(Char::isDigit) }
+
+/** The last path segment, percent-decoded and without its extension. */
+private fun String.nameSegment(): String =
+    substringBefore('?').substringAfterLast('/').decodePercentEscapes().substringBeforeLast('.')
 
 /**
  * Restores the text behind `%XX` escapes. Network playlist rows store `Uri`-encoded paths and carry no
