@@ -64,6 +64,7 @@ private const val MILLISECONDS_PER_SECOND = 1_000L
 const val LOCK_CONTROLS_TEST_TAG = "lockControls"
 const val PICTURE_IN_PICTURE_TEST_TAG = "pictureInPicture"
 const val CONTENT_ROTATE_TEST_TAG = "contentRotate"
+const val TIME_DISPLAY_TEST_TAG = "timeDisplay"
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -85,11 +86,18 @@ fun ControlsBottomView(
     onPlaybackSpeedClick: () -> Unit,
     onSeek: (Long) -> Unit,
     onSeekEnd: () -> Unit,
+    /** Where a finger is holding the bar, when one is: the position this view shows instead of the player's. */
+    scrubbingPositionMs: Float? = null,
+    onScrubbing: (Float?) -> Unit = {},
 ) {
     val systemBarsPadding = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
     val context = LocalContext.current
     val isTv = remember { context.isTelevision }
     val timeButtonFocusRequester = remember { FocusRequester() }
+
+    // While a finger is held on the seekbar, this is the position to show: the player has not moved yet, and
+    // the whole point of scrubbing is reading where the finger is going to land.
+    val displayedPositionMs = scrubbingPositionMs ?: progressState.currentPositionMs.toFloat()
     Column(
         modifier = modifier
             .padding(systemBarsPadding.copy(top = 0.dp))
@@ -106,14 +114,19 @@ fun ControlsBottomView(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PlayerButton(
-                modifier = Modifier.focusRequester(timeButtonFocusRequester),
+                modifier = Modifier
+                    .testTag(TIME_DISPLAY_TEST_TAG)
+                    .focusRequester(timeButtonFocusRequester),
                 onClick = onToggleTimeDisplay,
                 containerColor = PlayerButtonBlackAlpha,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 1.dp),
             ) {
-                val timeTextPositionMs by remember(progressState) {
+                // Rounding belongs in the derivation so the label only recomposes when a second ticks over; the
+                // scrub target has to be a key as well, since it reaches this scope as a plain value, not a state.
+                val timeTextPositionMs by remember(scrubbingPositionMs, progressState) {
                     derivedStateOf {
-                        val wholeSeconds = progressState.currentPositionMs / MILLISECONDS_PER_SECOND
+                        val shownMs = (scrubbingPositionMs ?: progressState.currentPositionMs.toFloat()).toLong()
+                        val wholeSeconds = shownMs / MILLISECONDS_PER_SECOND
                         wholeSeconds * MILLISECONDS_PER_SECOND
                     }
                 }
@@ -183,11 +196,12 @@ fun ControlsBottomView(
             }
         }
         PlayerSeekbar(
-            position = progressState.currentPositionMs.toFloat(),
+            position = displayedPositionMs,
             duration = progressState.durationMs.toFloat(),
             chapters = chaptersState.chapters,
             onSeek = { onSeek(it.toLong()) },
             onSeekFinished = { onSeekEnd() },
+            onScrubbing = onScrubbing,
         )
         Row(
             modifier = Modifier

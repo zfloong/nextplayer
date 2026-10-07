@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -37,6 +38,8 @@ import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberChaptersState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -170,6 +173,38 @@ class ControlsBottomViewTest {
         }
     }
 
+    @Test
+    fun heldDragFeedsTheTargetTimeToTheChipBeforeSeeking() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player)
+            val scrub = composeRule.onNodeWithTag(SEEK_SCRUB_TEST_TAG)
+            scrub.performTouchInput {
+                down(Offset(1f, centerY))
+                moveTo(Offset(width * 0.5f, centerY))
+            }
+            val previewedTime = timeChipText()
+            composeRule.runOnIdle {
+                assertNotEquals("00:00 / 01:00", previewedTime)
+                assertEquals(0L, player.currentPosition)
+            }
+
+            scrub.performTouchInput { up() }
+            composeRule.runOnIdle {
+                assertEquals(previewedTime, timeChipText())
+                assertTrue(player.currentPosition > 0L)
+            }
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    private fun timeChipText(): String =
+        composeRule.onNodeWithTag(TIME_DISPLAY_TEST_TAG)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.Text]
+            .joinToString(separator = "") { it.text }
+
     private fun showControls(
         player: Player,
         isPortrait: Boolean = false,
@@ -180,6 +215,8 @@ class ControlsBottomViewTest {
             NextPlayerTheme {
                 val progress = rememberProgressStateWithTickInterval(player)
                 var showRemainingTime by remember { mutableStateOf(false) }
+                // The preview is held one level up in production, where the middle of the screen reads it too.
+                var scrubbingPositionMs by remember { mutableStateOf<Float?>(null) }
                 ControlsBottomView(
                     player = player,
                     progressState = progress,
@@ -197,6 +234,8 @@ class ControlsBottomViewTest {
                     onPlaybackSpeedClick = {},
                     onSeek = player::seekTo,
                     onSeekEnd = {},
+                    scrubbingPositionMs = scrubbingPositionMs,
+                    onScrubbing = { scrubbingPositionMs = it },
                 )
             }
         }

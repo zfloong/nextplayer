@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -18,6 +22,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.state.ProgressStateWithTickInterval
 import dev.anilbeesetti.nextplayer.core.model.ControlButtonsPosition
 import dev.anilbeesetti.nextplayer.core.model.PlayerPreferences
+import dev.anilbeesetti.nextplayer.feature.player.extensions.formatted
 import dev.anilbeesetti.nextplayer.feature.player.state.ChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlBarHeights
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
@@ -32,6 +37,7 @@ import dev.anilbeesetti.nextplayer.feature.player.ui.controls.ControlsMiddleView
 import dev.anilbeesetti.nextplayer.feature.player.ui.controls.ControlsTopView
 import dev.anilbeesetti.nextplayer.feature.player.ui.isPortrait
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.DecoderMode
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -55,6 +61,9 @@ fun PlayerControls(
     middleControlsModifier: Modifier = Modifier,
 ) {
     val isPortrait = LocalConfiguration.current.isPortrait
+    // Where a finger is holding the seekbar, reported up by the bar below. It lives at this level because the
+    // middle of the screen - the only place it can be read without looking away from the picture - is drawn here.
+    var scrubTargetMs by remember { mutableStateOf<Float?>(null) }
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -98,6 +107,8 @@ fun PlayerControls(
                     onToggleTimeDisplay = onToggleTimeDisplay,
                     onSeek = seekGestureState::onSeek,
                     onSeekEnd = seekGestureState::onSeekEnd,
+                    scrubbingPositionMs = scrubTargetMs,
+                    onScrubbing = { scrubTargetMs = it },
                     onPlaybackSpeedClick = { onShowOverlay(OverlayView.PLAYBACK_SPEED) },
                     onLockControlsClick = {
                         controlsVisibilityState.showControls()
@@ -112,8 +123,10 @@ fun PlayerControls(
                 )
             }
         }
+        val scrubTarget = scrubTargetMs
         when {
             seekGestureState.seekAmount != null -> InfoView(info = "${seekGestureState.seekAmountFormatted}\n[${seekGestureState.seekToPositionFormated}]")
+            scrubTarget != null -> InfoView(info = scrubTarget.toLong().milliseconds.formatted())
             videoTransformState.isZooming -> InfoView(info = "${(videoTransformState.zoom * 100).toInt()}%")
             controlsVisibilityState.controlsVisible -> ControlsMiddleView(
                 player = player,
