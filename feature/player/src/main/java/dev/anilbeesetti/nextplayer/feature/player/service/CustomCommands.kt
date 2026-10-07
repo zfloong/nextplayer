@@ -15,8 +15,6 @@ import kotlinx.coroutines.guava.await
 enum class CustomCommands(val customAction: String) {
     ADD_SUBTITLE_TRACK(customAction = "ADD_SUBTITLE_TRACK"),
     ADD_AUDIO_TRACK(customAction = "ADD_AUDIO_TRACK"),
-    SET_SKIP_SILENCE_ENABLED(customAction = "SET_SKIP_SILENCE_ENABLED"),
-    GET_SKIP_SILENCE_ENABLED(customAction = "GET_SKIP_SILENCE_ENABLED"),
     SET_IS_SCRUBBING_MODE_ENABLED(customAction = "SET_IS_SCRUBBING_MODE_ENABLED"),
     GET_SUBTITLE_DELAY(customAction = "GET_SUBTITLE_DELAY"),
     SET_SUBTITLE_DELAY(customAction = "SET_SUBTITLE_DELAY"),
@@ -44,7 +42,6 @@ enum class CustomCommands(val customAction: String) {
 
         const val AUDIO_TRACK_URI_KEY = "audio_track_uri"
         const val SUBTITLE_TRACK_URI_KEY = "subtitle_track_uri"
-        const val SKIP_SILENCE_ENABLED_KEY = "skip_silence_enabled"
         const val IS_SCRUBBING_MODE_ENABLED_KEY = "is_scrubbing_mode_enabled"
         const val SUBTITLE_DELAY_KEY = "subtitle_delay"
         const val SUBTITLE_SPEED_KEY = "subtitle_speed"
@@ -72,23 +69,11 @@ fun MediaController.addSubtitleTrack(uri: Uri) {
     sendCustomCommand(CustomCommands.ADD_SUBTITLE_TRACK.sessionCommand, args)
 }
 
-suspend fun MediaController.setSkipSilenceEnabled(enabled: Boolean) {
-    val args = Bundle().apply {
-        putBoolean(CustomCommands.SKIP_SILENCE_ENABLED_KEY, enabled)
-    }
-    sendCustomCommand(CustomCommands.SET_SKIP_SILENCE_ENABLED.sessionCommand, args).await()
-}
-
 fun MediaController.setMediaControllerIsScrubbingModeEnabled(enabled: Boolean) {
     val args = Bundle().apply {
         putBoolean(CustomCommands.IS_SCRUBBING_MODE_ENABLED_KEY, enabled)
     }
     sendCustomCommand(CustomCommands.SET_IS_SCRUBBING_MODE_ENABLED.sessionCommand, args)
-}
-
-suspend fun MediaController.getSkipSilenceEnabled(): Boolean {
-    val result = sendCustomCommand(CustomCommands.GET_SKIP_SILENCE_ENABLED.sessionCommand, Bundle.EMPTY)
-    return result.await().extras.getBoolean(CustomCommands.SKIP_SILENCE_ENABLED_KEY, false)
 }
 
 fun MediaController.setSubtitleDelayMilliseconds(delayMillis: Long) {

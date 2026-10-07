@@ -37,10 +37,10 @@ fun PlaybackSpeedButton(
         enabled = state.isEnabled,
         onClick = onClick,
         containerColor = PlayerButtonBlackAlpha,
-        contentPadding = PaddingValues(4.dp),
+        contentPadding = PaddingValues(8.dp),
     ) {
         Box(
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center,
         ) {
             BasicText(

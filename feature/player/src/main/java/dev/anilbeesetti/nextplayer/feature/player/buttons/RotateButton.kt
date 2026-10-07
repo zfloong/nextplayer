@@ -24,7 +24,7 @@ fun RotateButton(modifier: Modifier = Modifier) {
         Icon(
             painter = painterResource(R.drawable.ic_screen_rotation),
             contentDescription = stringResource(R.string.screen_rotation),
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(40.dp),
         )
     }
 }

@@ -581,25 +581,6 @@ class PlayerService : MediaSessionService() {
                     return@future SessionResult(SessionResult.RESULT_SUCCESS)
                 }
 
-                CustomCommands.SET_SKIP_SILENCE_ENABLED -> {
-                    val enabled = args.getBoolean(CustomCommands.SKIP_SILENCE_ENABLED_KEY)
-                    mediaSession?.player?.playerSpecificSkipSilenceEnabled = enabled
-                    mediaSession?.sessionExtras = Bundle(mediaSession?.sessionExtras ?: Bundle.EMPTY).apply {
-                        putBoolean(CustomCommands.SKIP_SILENCE_ENABLED_KEY, enabled)
-                    }
-                    return@future SessionResult(SessionResult.RESULT_SUCCESS)
-                }
-
-                CustomCommands.GET_SKIP_SILENCE_ENABLED -> {
-                    val enabled = mediaSession?.player?.playerSpecificSkipSilenceEnabled ?: false
-                    return@future SessionResult(
-                        SessionResult.RESULT_SUCCESS,
-                        Bundle().apply {
-                            putBoolean(CustomCommands.SKIP_SILENCE_ENABLED_KEY, enabled)
-                        },
-                    )
-                }
-
                 CustomCommands.SET_IS_SCRUBBING_MODE_ENABLED -> {
                     val enabled = args.getBoolean(CustomCommands.IS_SCRUBBING_MODE_ENABLED_KEY)
                     mediaSession?.player?.setIsScrubbingModeEnabled(enabled)
@@ -1082,20 +1063,6 @@ private val DecoderTrackType.mediaTrackType: Int
     }
 
 private const val DECODER_LOG_TAG = "Decoder"
-
-@get:UnstableApi
-@set:UnstableApi
-private var Player.playerSpecificSkipSilenceEnabled: Boolean
-    @OptIn(UnstableApi::class)
-    get() = when (this) {
-        is ExoPlayer -> this.skipSilenceEnabled
-        else -> false
-    }
-    set(value) {
-        when (this) {
-            is ExoPlayer -> this.skipSilenceEnabled = value
-        }
-    }
 
 @get:UnstableApi
 @set:UnstableApi
