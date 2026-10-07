@@ -264,6 +264,7 @@
     <string name="shuffle_on">已开启随机播放</string>
     <string name="shuffle_off">已关闭随机播放</string>
     <string name="rotate_video_180">画面旋转 180°</string>
+    <string name="player_queue_position">第 %1$d 条 / 共 %2$d 条</string>
     <string name="reset_seek_increment">重置跳转增量</string>
     <string name="reset_controller_timeout">重置控制器超时</string>
     <string name="pan_gesture">平移手势</string>

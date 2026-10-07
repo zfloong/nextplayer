@@ -17,17 +17,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.state.ProgressStateWithTickInterval
 import dev.anilbeesetti.nextplayer.core.model.ControlButtonsPosition
 import dev.anilbeesetti.nextplayer.core.model.PlayerPreferences
+import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.feature.player.extensions.formatted
 import dev.anilbeesetti.nextplayer.feature.player.state.ChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlBarHeights
 import dev.anilbeesetti.nextplayer.feature.player.state.ControlsVisibilityState
 import dev.anilbeesetti.nextplayer.feature.player.state.SeekGestureState
 import dev.anilbeesetti.nextplayer.feature.player.state.VideoTransformState
+import dev.anilbeesetti.nextplayer.feature.player.state.rememberPlaylistState
 import dev.anilbeesetti.nextplayer.feature.player.state.seekAmountFormatted
 import dev.anilbeesetti.nextplayer.feature.player.state.seekToPositionFormated
 import dev.anilbeesetti.nextplayer.feature.player.ui.InfoView
@@ -64,6 +68,16 @@ fun PlayerControls(
     // Where a finger is holding the seekbar, reported up by the bar below. It lives at this level because the
     // middle of the screen - the only place it can be read without looking away from the picture - is drawn here.
     var scrubTargetMs by remember { mutableStateOf<Float?>(null) }
+    // The queue index is the same number the playlist panel rows are drawn in, so the two can never disagree.
+    // A single-item queue has nothing to count, and 0 total means the timeline command hasn't landed yet.
+    val playlistState = player?.let { rememberPlaylistState(it) }
+    val queueIndex = playlistState?.currentMediaItemIndex ?: C.INDEX_UNSET
+    val queueTotal = playlistState?.mediaItemCount ?: 0
+    val queuePosition = if (queueIndex != C.INDEX_UNSET && queueTotal > 1) {
+        stringResource(R.string.player_queue_position, queueIndex + 1, queueTotal)
+    } else {
+        null
+    }
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -77,10 +91,7 @@ fun PlayerControls(
             ) {
                 ControlsTopView(
                     title = title,
-                    videoDecoderMode = videoDecoderMode,
-                    onDecoderClick = { onShowOverlay(OverlayView.DECODER_SELECTOR) },
-                    onAudioClick = { onShowOverlay(OverlayView.AUDIO_SELECTOR) },
-                    onSubtitleClick = { onShowOverlay(OverlayView.SUBTITLE_SELECTOR) },
+                    queuePosition = queuePosition,
                     onPlaylistClick = { onShowOverlay(OverlayView.PLAYLIST) },
                     onBackClick = onBackClick,
                 )
@@ -104,6 +115,10 @@ fun PlayerControls(
                     isPipSupported = isPipSupported,
                     isPortrait = isPortrait,
                     showRemainingTime = playerPreferences.showRemainingTime,
+                    videoDecoderMode = videoDecoderMode,
+                    onDecoderClick = { onShowOverlay(OverlayView.DECODER_SELECTOR) },
+                    onAudioClick = { onShowOverlay(OverlayView.AUDIO_SELECTOR) },
+                    onSubtitleClick = { onShowOverlay(OverlayView.SUBTITLE_SELECTOR) },
                     onToggleTimeDisplay = onToggleTimeDisplay,
                     onSeek = seekGestureState::onSeek,
                     onSeekEnd = seekGestureState::onSeekEnd,

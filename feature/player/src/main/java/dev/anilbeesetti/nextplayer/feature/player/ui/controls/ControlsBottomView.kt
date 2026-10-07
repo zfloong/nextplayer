@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,16 +57,21 @@ import dev.anilbeesetti.nextplayer.feature.player.buttons.PlaybackSpeedButton
 import dev.anilbeesetti.nextplayer.feature.player.buttons.PlayerButton
 import dev.anilbeesetti.nextplayer.feature.player.buttons.PlayerButtonBlackAlpha
 import dev.anilbeesetti.nextplayer.feature.player.buttons.RotateButton
+import dev.anilbeesetti.nextplayer.feature.player.model.labelRes
 import dev.anilbeesetti.nextplayer.feature.player.state.ChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberChaptersState
 import dev.anilbeesetti.nextplayer.feature.player.ui.preview.rememberPreviewPlayer
 import dev.anilbeesetti.nextplayer.feature.player.ui.titleOrDefault
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.DecoderMode
 
 private const val MILLISECONDS_PER_SECOND = 1_000L
 const val LOCK_CONTROLS_TEST_TAG = "lockControls"
 const val PICTURE_IN_PICTURE_TEST_TAG = "pictureInPicture"
 const val CONTENT_ROTATE_TEST_TAG = "contentRotate"
 const val TIME_DISPLAY_TEST_TAG = "timeDisplay"
+const val DECODER_TEST_TAG = "selectDecoder"
+const val AUDIO_TRACK_TEST_TAG = "selectAudioTrack"
+const val SUBTITLE_TRACK_TEST_TAG = "selectSubtitleTrack"
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -77,6 +84,7 @@ fun ControlsBottomView(
     isPipSupported: Boolean,
     isPortrait: Boolean,
     showRemainingTime: Boolean,
+    videoDecoderMode: DecoderMode? = null,
     onToggleTimeDisplay: () -> Unit,
     onChaptersClick: () -> Unit,
     onLockControlsClick: () -> Unit,
@@ -84,6 +92,9 @@ fun ControlsBottomView(
     onContentRotateClick: () -> Unit,
     contentRotated: Boolean,
     onPlaybackSpeedClick: () -> Unit,
+    onDecoderClick: () -> Unit = {},
+    onAudioClick: () -> Unit = {},
+    onSubtitleClick: () -> Unit = {},
     onSeek: (Long) -> Unit,
     onSeekEnd: () -> Unit,
     /** Where a finger is holding the bar, when one is: the position this view shows instead of the player's. */
@@ -94,6 +105,7 @@ fun ControlsBottomView(
     val context = LocalContext.current
     val isTv = remember { context.isTelevision }
     val timeButtonFocusRequester = remember { FocusRequester() }
+    val decoderDescription = stringResource(R.string.select_decoders)
 
     // While a finger is held on the seekbar, this is the position to show: the player has not moved yet, and
     // the whole point of scrubbing is reading where the finger is going to land.
@@ -243,6 +255,39 @@ fun ControlsBottomView(
                 )
             }
             PlaybackModeButton(player = player)
+
+            // Decoder, audio and subtitle picks used to crowd the top bar next to the title; they belong
+            // with the other playback switches.
+            PlayerButton(
+                modifier = Modifier
+                    .testTag(DECODER_TEST_TAG)
+                    .semantics { contentDescription = decoderDescription },
+                onClick = onDecoderClick,
+            ) {
+                Text(
+                    text = stringResource((videoDecoderMode ?: DecoderMode.HARDWARE).labelRes),
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                )
+            }
+            PlayerButton(
+                modifier = Modifier.testTag(AUDIO_TRACK_TEST_TAG),
+                onClick = onAudioClick,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_audio_track),
+                    contentDescription = null,
+                )
+            }
+            PlayerButton(
+                modifier = Modifier.testTag(SUBTITLE_TRACK_TEST_TAG),
+                onClick = onSubtitleClick,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_subtitle_track),
+                    contentDescription = null,
+                )
+            }
         }
     }
 }

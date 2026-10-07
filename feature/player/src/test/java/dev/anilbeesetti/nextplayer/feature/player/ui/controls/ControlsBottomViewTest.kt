@@ -11,9 +11,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -34,6 +36,7 @@ import androidx.media3.extractor.metadata.Chapter
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.theme.NextPlayerTheme
 import dev.anilbeesetti.nextplayer.feature.player.state.rememberChaptersState
 import org.junit.Assert.assertEquals
@@ -199,6 +202,45 @@ class ControlsBottomViewTest {
         }
     }
 
+    @Test
+    fun orientationAndSpeedButtonsShareTheGrownTapTarget() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        try {
+            showControls(player, isPortrait = true)
+            val orientation = composeRule
+                .onNodeWithContentDescription(composeRule.activity.getString(R.string.screen_rotation))
+                .fetchSemanticsNode().boundsInRoot.width
+            val speed = composeRule
+                .onNodeWithContentDescription(composeRule.activity.getString(R.string.select_playback_speed))
+                .fetchSemanticsNode().boundsInRoot.width
+
+            assertEquals(56f, orientation, 0.5f)
+            assertEquals(orientation, speed, 0.5f)
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
+    @Test
+    fun decoderAudioAndSubtitleButtonsFollowTheLoopButton() {
+        val player = composeRule.runOnIdle { TestPlayer() }
+        var decoderClicks = 0
+        try {
+            showControls(player, onDecoderClick = { decoderClicks++ })
+            val rotateLeft = composeRule.onNodeWithTag(CONTENT_ROTATE_TEST_TAG)
+                .fetchSemanticsNode().boundsInRoot.left
+            val decoder = composeRule.onNodeWithTag(DECODER_TEST_TAG)
+            decoder.assertIsDisplayed().performClick()
+            composeRule.onNodeWithTag(AUDIO_TRACK_TEST_TAG).assertIsDisplayed()
+            composeRule.onNodeWithTag(SUBTITLE_TRACK_TEST_TAG).assertIsDisplayed()
+
+            assertTrue(decoder.fetchSemanticsNode().boundsInRoot.left > rotateLeft)
+            composeRule.runOnIdle { assertEquals(1, decoderClicks) }
+        } finally {
+            composeRule.runOnIdle { player.release() }
+        }
+    }
+
     private fun timeChipText(): String =
         composeRule.onNodeWithTag(TIME_DISPLAY_TEST_TAG)
             .fetchSemanticsNode()
@@ -210,6 +252,7 @@ class ControlsBottomViewTest {
         isPortrait: Boolean = false,
         isPipSupported: Boolean = false,
         onContentRotateClick: () -> Unit = {},
+        onDecoderClick: () -> Unit = {},
     ) {
         composeRule.setContent {
             NextPlayerTheme {
@@ -225,6 +268,7 @@ class ControlsBottomViewTest {
                     isPipSupported = isPipSupported,
                     isPortrait = isPortrait,
                     showRemainingTime = showRemainingTime,
+                    videoDecoderMode = null,
                     onToggleTimeDisplay = { showRemainingTime = !showRemainingTime },
                     onChaptersClick = {},
                     onLockControlsClick = {},
@@ -232,6 +276,9 @@ class ControlsBottomViewTest {
                     onContentRotateClick = onContentRotateClick,
                     contentRotated = false,
                     onPlaybackSpeedClick = {},
+                    onDecoderClick = onDecoderClick,
+                    onAudioClick = {},
+                    onSubtitleClick = {},
                     onSeek = player::seekTo,
                     onSeekEnd = {},
                     scrubbingPositionMs = scrubbingPositionMs,

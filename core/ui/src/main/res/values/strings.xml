@@ -299,6 +299,7 @@
     <string name="shuffle_on">Shuffle on</string>
     <string name="shuffle_off">Shuffle off</string>
     <string name="rotate_video_180">Rotate video 180°</string>
+    <string name="player_queue_position">Item %1$d of %2$d</string>
     <string name="crash_screen_title">Oops</string>
     <string name="crash_screen_subtitle">Looks like %s experienced an unexpected error. Consider sharing the crash logs in a GitHub issue.</string>
     <string name="crash_screen_logs_title">Crash logs:</string>
